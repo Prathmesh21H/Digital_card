@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import QRCode from 'qrcode';
 
 interface ProfileData {
   slug: string;
@@ -22,7 +21,6 @@ interface ProfileData {
   twitter: string;
   instagram: string;
   facebook: string;
-  qrCodeUrl: string;
 }
 
 export default function EditProfilePage() {
@@ -42,7 +40,6 @@ export default function EditProfilePage() {
     twitter: '',
     instagram: '',
     facebook: '',
-    qrCodeUrl: '',
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -113,31 +110,6 @@ export default function EditProfilePage() {
       .replace(/(^-|-$)/g, '');
   };
 
-  const generateQRCode = async (url: string): Promise<string> => {
-    try {
-      const qrDataUrl = await QRCode.toDataURL(url, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF',
-        },
-      });
-
-      // Convert data URL to blob
-      const res = await fetch(qrDataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], 'qrcode.png', { type: 'image/png' });
-
-      // Upload to Cloudinary
-      const qrUrl = await uploadToCloudinary(file);
-      return qrUrl;
-    } catch (err) {
-      console.error('Error generating QR code:', err);
-      throw err;
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -162,16 +134,12 @@ export default function EditProfilePage() {
         slug = generateSlug(formData.fullName);
       }
 
-      // Generate QR code URL
-      const profileUrl = `${window.location.origin}/${slug}`;
-      const qrCodeUrl = await generateQRCode(profileUrl);
-
-      // Save to Firestore
+      // Save to Firestore without QR code URL
+      // QR code will be generated dynamically on the profile page
       const profileData = {
         ...formData,
         slug,
         profileImage: imageUrl,
-        qrCodeUrl,
         updatedAt: new Date(),
       };
 

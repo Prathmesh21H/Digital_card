@@ -1,6 +1,8 @@
 // components/ProfileView.tsx
 'use client';
+import { useEffect, useState } from 'react';
 import { Phone, Mail, Globe, Linkedin, Twitter, Instagram, Facebook, Download } from 'lucide-react';
+import QRCode from 'qrcode';
 
 interface ProfileData {
   slug: string;
@@ -25,6 +27,36 @@ interface ProfileViewProps {
 }
 
 export default function ProfileView({ profile, userId }: ProfileViewProps) {
+  const [qrCode, setQrCode] = useState<string>('');
+  const [qrLoading, setQrLoading] = useState(true);
+
+  useEffect(() => {
+    const generateQRCode = async () => {
+      try {
+        // Get the base URL - uses environment variable or current origin
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+        const profileUrl = `${baseUrl}/${profile.slug}`;
+        
+        const qrDataUrl = await QRCode.toDataURL(profileUrl, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF',
+          },
+        });
+        
+        setQrCode(qrDataUrl);
+      } catch (error) {
+        console.error('Error generating QR code:', error);
+      } finally {
+        setQrLoading(false);
+      }
+    };
+
+    generateQRCode();
+  }, [profile.slug]);
+
   const handleDownloadVCard = async () => {
     try {
       const response = await fetch(`/api/vcard?userId=${userId}`);
@@ -175,21 +207,29 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
               </div>
             )}
 
-            {/* QR Code */}
-            {profile.qrCodeUrl && (
-              <div className="mb-6 text-center">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  Share My Card
-                </h3>
-                <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
+            {/* QR Code - Dynamically Generated */}
+            <div className="mb-6 text-center">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Share My Card
+              </h3>
+              <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
+                {qrLoading ? (
+                  <div className="w-48 h-48 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : qrCode ? (
                   <img
-                    src={profile.qrCodeUrl}
+                    src={qrCode}
                     alt="QR Code"
                     className="w-48 h-48"
                   />
-                </div>
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center text-gray-400">
+                    Unable to generate QR code
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Save Contact Button */}
             <button
