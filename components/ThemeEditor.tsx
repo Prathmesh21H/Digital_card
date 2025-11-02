@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Palette, Pipette } from 'lucide-react';
+import { Upload, X, Palette, Pipette, Maximize2, Info } from 'lucide-react';
 
 interface ThemeEditorProps {
   currentLogo?: string;
   currentPrimaryColor?: string;
   currentSecondaryColor?: string;
-  onSave: (logoUrl: string, primaryColor: string, secondaryColor: string) => Promise<void>;
+  currentLogoWidth?: number;
+  currentLogoHeight?: number;
+  onSave: (logoUrl: string, primaryColor: string, secondaryColor: string, logoWidth: number, logoHeight: number) => Promise<void>;
 }
 
 const colorOptions = [
@@ -27,16 +29,26 @@ const colorOptions = [
   { name: 'Rose', value: 'rose', hex: '#f43f5e' },
 ];
 
+// More flexible dimensions
+const MAX_LOGO_HEIGHT = 300;
+const MAX_LOGO_WIDTH = 600;
+const MIN_LOGO_SIZE = 30;
+const FIXED_BANNER_HEIGHT = 128; // Fixed banner height
+
 export default function ThemeEditor({ 
   currentLogo, 
   currentPrimaryColor = 'orange', 
-  currentSecondaryColor = 'green', 
+  currentSecondaryColor = 'green',
+  currentLogoWidth = 80,
+  currentLogoHeight = 80,
   onSave 
 }: ThemeEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [logoUrl, setLogoUrl] = useState(currentLogo || '');
   const [primaryColor, setPrimaryColor] = useState(currentPrimaryColor);
   const [secondaryColor, setSecondaryColor] = useState(currentSecondaryColor);
+  const [logoWidth, setLogoWidth] = useState(currentLogoWidth);
+  const [logoHeight, setLogoHeight] = useState(currentLogoHeight);
   const [customPrimaryHex, setCustomPrimaryHex] = useState('');
   const [customSecondaryHex, setCustomSecondaryHex] = useState('');
   const [showPrimaryPicker, setShowPrimaryPicker] = useState(false);
@@ -45,6 +57,8 @@ export default function ThemeEditor({
   const [isUploading, setIsUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState(currentLogo || '');
   const [error, setError] = useState('');
+  const [maintainAspectRatio, setMaintainAspectRatio] = useState(true);
+  const [aspectRatio, setAspectRatio] = useState(1);
 
   // Sync with props when they change
   useEffect(() => {
@@ -52,7 +66,35 @@ export default function ThemeEditor({
     setLogoPreview(currentLogo || '');
     setPrimaryColor(currentPrimaryColor);
     setSecondaryColor(currentSecondaryColor);
-  }, [currentLogo, currentPrimaryColor, currentSecondaryColor]);
+    setLogoWidth(currentLogoWidth);
+    setLogoHeight(currentLogoHeight);
+    if (currentLogoWidth && currentLogoHeight) {
+      setAspectRatio(currentLogoWidth / currentLogoHeight);
+    }
+  }, [currentLogo, currentPrimaryColor, currentSecondaryColor, currentLogoWidth, currentLogoHeight]);
+
+  // Calculate display dimensions for preview (scales down if too large)
+  const getDisplayDimensions = (width: number, height: number) => {
+    const maxHeight = FIXED_BANNER_HEIGHT - 40;
+    const maxWidth = 500;
+    
+    let displayWidth = width;
+    let displayHeight = height;
+    
+    if (height > maxHeight) {
+      const scale = maxHeight / height;
+      displayHeight = maxHeight;
+      displayWidth = width * scale;
+    }
+    
+    if (displayWidth > maxWidth) {
+      const scale = maxWidth / displayWidth;
+      displayWidth = maxWidth;
+      displayHeight = displayHeight * scale;
+    }
+    
+    return { displayWidth, displayHeight };
+  };
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const formData = new FormData();
@@ -62,8 +104,6 @@ export default function ThemeEditor({
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'my_unsigned_preset';
     
     formData.append('upload_preset', uploadPreset);
-
-    console.log('Uploading to Cloudinary:', cloudName, uploadPreset);
 
     const res = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
@@ -80,7 +120,6 @@ export default function ThemeEditor({
     }
 
     const data = await res.json();
-    console.log('Cloudinary upload success:', data.secure_url);
     return data.secure_url;
   };
 
@@ -102,6 +141,39 @@ export default function ThemeEditor({
     setIsUploading(true);
 
     try {
+      // Load image to get natural dimensions
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = objectUrl;
+      });
+
+      // Calculate aspect ratio
+      const naturalAspectRatio = img.naturalWidth / img.naturalHeight;
+      setAspectRatio(naturalAspectRatio);
+
+      // Set initial dimensions based on natural aspect ratio
+      let initialWidth = 100;
+      let initialHeight = 100;
+
+      if (naturalAspectRatio > 1) {
+        // Landscape
+        initialWidth = Math.min(140, MAX_LOGO_WIDTH);
+        initialHeight = Math.round(initialWidth / naturalAspectRatio);
+      } else {
+        // Portrait or square
+        initialHeight = Math.min(100, MAX_LOGO_HEIGHT);
+        initialWidth = Math.round(initialHeight * naturalAspectRatio);
+      }
+
+      setLogoWidth(initialWidth);
+      setLogoHeight(initialHeight);
+      
+      URL.revokeObjectURL(objectUrl);
+
       const uploadedUrl = await uploadToCloudinary(file);
       setLogoUrl(uploadedUrl);
       setLogoPreview(uploadedUrl);
@@ -110,6 +182,28 @@ export default function ThemeEditor({
       setError('Failed to upload logo. Please try again.');
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleWidthChange = (newWidth: number) => {
+    const clampedWidth = Math.max(MIN_LOGO_SIZE, Math.min(MAX_LOGO_WIDTH, newWidth));
+    setLogoWidth(clampedWidth);
+    
+    if (maintainAspectRatio) {
+      const newHeight = Math.round(clampedWidth / aspectRatio);
+      const clampedHeight = Math.max(MIN_LOGO_SIZE, Math.min(MAX_LOGO_HEIGHT, newHeight));
+      setLogoHeight(clampedHeight);
+    }
+  };
+
+  const handleHeightChange = (newHeight: number) => {
+    const clampedHeight = Math.max(MIN_LOGO_SIZE, Math.min(MAX_LOGO_HEIGHT, newHeight));
+    setLogoHeight(clampedHeight);
+    
+    if (maintainAspectRatio) {
+      const newWidth = Math.round(clampedHeight * aspectRatio);
+      const clampedWidth = Math.max(MIN_LOGO_SIZE, Math.min(MAX_LOGO_WIDTH, newWidth));
+      setLogoWidth(clampedWidth);
     }
   };
 
@@ -137,7 +231,7 @@ export default function ThemeEditor({
     setError('');
     
     try {
-      await onSave(logoUrl, primaryColor, secondaryColor);
+      await onSave(logoUrl, primaryColor, secondaryColor, logoWidth, logoHeight);
       setIsEditing(false);
       setShowPrimaryPicker(false);
       setShowSecondaryPicker(false);
@@ -154,6 +248,8 @@ export default function ThemeEditor({
     setLogoPreview(currentLogo || '');
     setPrimaryColor(currentPrimaryColor);
     setSecondaryColor(currentSecondaryColor);
+    setLogoWidth(currentLogoWidth);
+    setLogoHeight(currentLogoHeight);
     setCustomPrimaryHex('');
     setCustomSecondaryHex('');
     setShowPrimaryPicker(false);
@@ -166,8 +262,12 @@ export default function ThemeEditor({
     const preset = colorOptions.find(c => c.value === color);
     if (preset) return preset.hex;
     if (isValidHex(color)) return color;
-    return '#f97316'; // Default orange
+    return '#f97316';
   };
+
+  const { displayWidth, displayHeight } = getDisplayDimensions(logoWidth, logoHeight);
+  const willBeScaled = displayWidth !== logoWidth || displayHeight !== logoHeight;
+  const isLogoOptimal = logoHeight >= 50 && logoHeight <= 88; // Optimal for 128px fixed banner
 
   if (!isEditing) {
     return (
@@ -192,9 +292,25 @@ export default function ThemeEditor({
           {logoPreview && (
             <div>
               <p className="text-sm text-gray-600 mb-2">Current Logo</p>
-              <div className="w-32 h-20 bg-gray-50 border-2 border-gray-200 rounded-lg flex items-center justify-center p-2">
-                <img src={logoPreview} alt="Logo" className="max-w-full max-h-full object-contain" />
+              <div 
+                className="bg-gray-50 border-2 border-gray-200 rounded-lg flex items-center justify-center p-4"
+                style={{ minHeight: '100px' }}
+              >
+                <img 
+                  src={logoPreview} 
+                  alt="Logo" 
+                  className="object-contain"
+                  style={{ 
+                    width: `${logoWidth}px`, 
+                    height: `${logoHeight}px`,
+                    maxWidth: '100%',
+                    maxHeight: '100%'
+                  }}
+                />
               </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Size: {logoWidth}px × {logoHeight}px
+              </p>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
@@ -258,13 +374,79 @@ export default function ThemeEditor({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Company Logo (Max 5MB)
           </label>
-          <div className="flex items-start gap-4">
+          <div className="space-y-4">
+            {/* LIVE PREVIEW - FIXED HEIGHT at 128px */}
             {logoPreview && (
-              <div className="w-32 h-20 bg-gray-50 border-2 border-gray-300 rounded-lg flex items-center justify-center p-2">
-                <img src={logoPreview} alt="Logo preview" className="max-w-full max-h-full object-contain" />
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-purple-700 uppercase tracking-wide flex items-center gap-2">
+                    <span className="flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-purple-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                    </span>
+                    Live Preview - Fixed 128px Banner
+                  </p>
+                  {isLogoOptimal && (
+                    <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full flex items-center gap-1">
+                      ✓ Perfect Size!
+                    </span>
+                  )}
+                </div>
+                
+                {/* FIXED HEIGHT banner preview - always 128px */}
+                <div 
+                  className="relative mx-auto rounded-lg flex items-center justify-center overflow-hidden shadow-lg"
+                  style={{ 
+                    height: `${FIXED_BANNER_HEIGHT}px`,
+                    background: `linear-gradient(to right, ${getColorPreview(primaryColor)}, white, ${getColorPreview(secondaryColor)})`,
+                    maxWidth: '100%'
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/10"></div>
+                  <img 
+                    src={logoPreview} 
+                    alt="Logo preview" 
+                    className="object-contain drop-shadow-lg relative z-10 transition-all duration-200"
+                    style={{ 
+                      width: `${displayWidth}px`, 
+                      height: `${displayHeight}px`,
+                      maxWidth: '95%',
+                      maxHeight: '95%'
+                    }}
+                  />
+                  
+                  {/* Dimension overlay */}
+                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
+                    {Math.round(displayWidth)} × {Math.round(displayHeight)}px {willBeScaled && '(scaled)'}
+                  </div>
+                </div>
+
+                {/* Feedback messages */}
+                <div className="mt-3 space-y-2">
+                  {isLogoOptimal && !willBeScaled && (
+                    <div className="flex items-start gap-2 text-xs text-green-700 bg-green-50 p-2 rounded border border-green-200">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <p>Perfect! Your logo fits beautifully in the 128px fixed banner.</p>
+                    </div>
+                  )}
+                  {willBeScaled && (
+                    <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <p>Your logo ({logoWidth}×{logoHeight}px) is being scaled down to fit the 128px banner. For best quality, use {Math.round(displayWidth)}×{Math.round(displayHeight)}px or smaller.</p>
+                    </div>
+                  )}
+                  {!isLogoOptimal && !willBeScaled && (
+                    <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 p-2 rounded border border-blue-200">
+                      <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <p>Banner height is fixed at 128px. Recommended logo height: 50-88px for optimal appearance.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-            <label className="flex-1 flex flex-col items-center justify-center px-4 py-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+
+            {/* Upload Button */}
+            <label className="flex flex-col items-center justify-center px-4 py-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition">
               {isUploading ? (
                 <>
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
@@ -273,7 +455,7 @@ export default function ThemeEditor({
               ) : (
                 <>
                   <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-600">Click to upload logo</span>
+                  <span className="text-sm text-gray-600">{logoPreview ? 'Change Logo' : 'Click to upload logo'}</span>
                   <span className="text-xs text-gray-500 mt-1">PNG, SVG or JPG</span>
                 </>
               )}
@@ -285,6 +467,83 @@ export default function ThemeEditor({
                 className="hidden"
               />
             </label>
+
+            {/* Logo Dimensions Control */}
+            {logoPreview && (
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <Maximize2 className="w-4 h-4 text-purple-600" />
+                    Adjust Logo Size
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={maintainAspectRatio}
+                      onChange={(e) => setMaintainAspectRatio(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-xs text-gray-600">Lock ratio</span>
+                  </label>
+                </div>
+
+                {/* Width Control */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-gray-700 font-medium">Width</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={MIN_LOGO_SIZE}
+                        max={MAX_LOGO_WIDTH}
+                        value={logoWidth}
+                        onChange={(e) => handleWidthChange(parseInt(e.target.value) || MIN_LOGO_SIZE)}
+                        className="w-16 px-2 py-1 text-sm font-mono text-purple-600 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <span className="text-xs text-gray-500">px</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={MIN_LOGO_SIZE}
+                    max={MAX_LOGO_WIDTH}
+                    value={logoWidth}
+                    onChange={(e) => handleWidthChange(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Height Control */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-gray-700 font-medium">Height</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={MIN_LOGO_SIZE}
+                        max={MAX_LOGO_HEIGHT}
+                        value={logoHeight}
+                        onChange={(e) => handleHeightChange(parseInt(e.target.value) || MIN_LOGO_SIZE)}
+                        className="w-16 px-2 py-1 text-sm font-mono text-purple-600 border border-purple-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      />
+                      <span className="text-xs text-gray-500">px</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={MIN_LOGO_SIZE}
+                    max={MAX_LOGO_HEIGHT}
+                    value={logoHeight}
+                    onChange={(e) => handleHeightChange(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-600 bg-white rounded p-2 border border-purple-200">
+                  💡 The banner stays at 128px height. Logos larger than ~88px height will be automatically scaled to fit!
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -341,73 +600,6 @@ export default function ThemeEditor({
                     value={customPrimaryHex || (isValidHex(primaryColor) ? primaryColor : '')}
                     onChange={(e) => {
                       const hex = e.target.value;
-                      setCustomPrimaryHex(hex);
-                      if (isValidHex(hex)) {
-                        setPrimaryColor(hex);
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono"
-                  />
-                </div>
-                <p className="text-xs text-gray-500">Enter a hex color code (e.g., #FF5733)</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Secondary Color */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Secondary Color
-          </label>
-          <div className="grid grid-cols-4 gap-3 mb-3">
-            {colorOptions.map((color) => (
-              <button
-                key={color.value}
-                type="button"
-                onClick={() => {
-                  setSecondaryColor(color.value);
-                  setCustomSecondaryHex('');
-                  setShowSecondaryPicker(false);
-                }}
-                className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition ${
-                  secondaryColor === color.value
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="w-10 h-10 rounded-lg" style={{ backgroundColor: color.hex }}></div>
-                <span className="text-xs font-medium text-gray-700">{color.name}</span>
-              </button>
-            ))}
-          </div>
-          
-          {/* Custom Secondary Color Picker */}
-          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-            <button
-              type="button"
-              onClick={() => setShowSecondaryPicker(!showSecondaryPicker)}
-              className="flex items-center gap-2 text-sm font-medium text-purple-600 hover:text-purple-700 mb-3"
-            >
-              <Pipette className="w-4 h-4" />
-              {showSecondaryPicker ? 'Hide' : 'Use'} Custom Color
-            </button>
-            
-            {showSecondaryPicker && (
-              <div className="space-y-3">
-                <div className="flex gap-3">
-                  <input
-                    type="color"
-                    value={getColorPreview(secondaryColor)}
-                    onChange={(e) => handleCustomSecondaryColor(e.target.value)}
-                    className="w-16 h-10 rounded border-2 border-gray-300 cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    placeholder="#000000"
-                    value={customSecondaryHex || (isValidHex(secondaryColor) ? secondaryColor : '')}
-                    onChange={(e) => {
-                      const hex = e.target.value;
                       setCustomSecondaryHex(hex);
                       if (isValidHex(hex)) {
                         setSecondaryColor(hex);
@@ -424,7 +616,7 @@ export default function ThemeEditor({
 
         {/* Preview */}
         <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
-          <p className="text-sm font-medium text-gray-700 mb-3">Preview</p>
+          <p className="text-sm font-medium text-gray-700 mb-3">Color Preview</p>
           <div className="flex items-center gap-3">
             <div 
               className="px-4 py-2 rounded-lg text-white text-sm font-medium"

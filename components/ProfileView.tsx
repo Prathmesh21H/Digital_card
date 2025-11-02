@@ -18,6 +18,8 @@ interface ProfileData {
   logoUrl?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  logoWidth?: number;
+  logoHeight?: number;
 }
 
 interface ProfileViewProps {
@@ -75,6 +77,15 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
   const primaryColor = profile.primaryColor || 'orange';
   const secondaryColor = profile.secondaryColor || 'green';
   const logoUrl = profile.logoUrl || '/logo-bharat-valley.svg';
+  const logoWidth = profile.logoWidth || 80;
+  const logoHeight = profile.logoHeight || 80;
+  
+  // FIXED banner height - never changes
+  const FIXED_BANNER_HEIGHT = 128;
+  
+  // Logo displays at its ACTUAL size (not scaled)
+  const displayWidth = logoWidth;
+  const displayHeight = logoHeight;
   
   // Get actual hex colors - support both preset names and custom hex
   const getColorShades = (color: string) => {
@@ -163,19 +174,27 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-xl mx-auto md:py-12">
-        <div className="bg-white md:rounded-2xl md:shadow-lg overflow-hidden md:border border-gray-100">
-          {/* Header with Logo - Dynamic Theme with INLINE STYLES */}
+        <div className="bg-white md:rounded-2xl md:shadow-lg md:border border-gray-100" style={{ overflow: 'visible' }}>
+          {/* Header with Logo - FIXED HEIGHT at 128px, logo can overflow */}
           <div 
-            className="relative h-32 flex items-center justify-center"
+            className="relative flex items-center justify-center md:rounded-t-2xl"
             style={{
-              background: `linear-gradient(to right, ${colors.primary}, white, ${colors.secondary})`
+              height: `${FIXED_BANNER_HEIGHT}px`,
+              background: `linear-gradient(to right, ${colors.primary}, white, ${colors.secondary})`,
+              overflow: 'visible'
             }}
           >
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/10"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/10 md:rounded-t-2xl"></div>
             <img 
               src={logoUrl}
               alt={profile.company || 'Company Logo'} 
-              className="h-20 w-auto drop-shadow-lg relative z-10 object-contain"
+              className="drop-shadow-lg relative z-10 object-contain"
+              style={{
+                width: `${displayWidth}px`,
+                height: `${displayHeight}px`,
+                maxWidth: 'none', // Allow logo to exceed banner width
+                maxHeight: 'none' // Allow logo to exceed banner height
+              }}
               onError={(e) => {
                 // Fallback if logo fails to load
                 e.currentTarget.src = '/logo-bharat-valley.svg';
@@ -377,7 +396,6 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
             <div className="mt-10 pt-6 border-t border-gray-200 text-center">
               <p className="text-xs text-gray-400 font-normal">
                 Powered by <span className="font-medium" style={{ color: colors.primary }}>
-                  {/* {profile.company || 'Bharat Valley'} */}
                   Bharat Valley Incubator & Accelerator Private Limited
                 </span>
               </p>

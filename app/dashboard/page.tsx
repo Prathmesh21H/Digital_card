@@ -20,6 +20,8 @@ interface Profile {
   logoUrl?: string;
   primaryColor?: string;
   secondaryColor?: string;
+  logoWidth?: number;
+  logoHeight?: number;
 }
 
 export default function DashboardPage() {
@@ -60,7 +62,13 @@ export default function DashboardPage() {
     fetchProfile();
   }, [user]);
 
-  const handleThemeSave = async (logoUrl: string, primaryColor: string, secondaryColor: string) => {
+  const handleThemeSave = async (
+    logoUrl: string, 
+    primaryColor: string, 
+    secondaryColor: string,
+    logoWidth: number,
+    logoHeight: number
+  ) => {
     if (!user) return;
     
     setThemeSaving(true);
@@ -72,6 +80,8 @@ export default function DashboardPage() {
         logoUrl,
         primaryColor,
         secondaryColor,
+        logoWidth,
+        logoHeight,
         updatedAt: new Date(),
       });
       
@@ -300,6 +310,8 @@ export default function DashboardPage() {
                 currentLogo={profile?.logoUrl}
                 currentPrimaryColor={profile?.primaryColor || 'orange'}
                 currentSecondaryColor={profile?.secondaryColor || 'green'}
+                currentLogoWidth={profile?.logoWidth || 80}
+                currentLogoHeight={profile?.logoHeight || 80}
                 onSave={handleThemeSave}
               />
             </div>
