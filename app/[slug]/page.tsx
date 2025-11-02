@@ -10,7 +10,7 @@ interface ProfileData {
   fullName: string;
   designation?: string;
   company?: string;
-  bio?: string;
+  bio: string;
   profileImage?: string;
   phone?: string;
   email?: string;
@@ -29,7 +29,7 @@ function serializeProfile(data: any): ProfileData {
     fullName: data.fullName || '',
     designation: data.designation || undefined,
     company: data.company || undefined,
-    bio: data.bio || undefined,
+    bio: (data.bio || '') as string,
     profileImage: data.profileImage || undefined,
     phone: data.phone || undefined,
     email: data.email || undefined,
