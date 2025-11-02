@@ -164,11 +164,27 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
 
   const formatPhoneDisplay = (phone: string) => {
     if (!phone) return '';
-    const formatted = phone.replace(/^\+\d{1,3}/, '').replace(/[\s-]/g, '');
-    if (formatted.length === 10) {
-      return `${formatted.slice(0, 5)} ${formatted.slice(5)}`;
+    
+    // Check if phone already has country code
+    if (phone.startsWith('+')) {
+      // Extract country code and number
+      const match = phone.match(/^(\+\d{1,3})(.+)$/);
+      if (match) {
+        const countryCode = match[1];
+        const number = match[2].replace(/[\s-]/g, '');
+        if (number.length === 10) {
+          return `${countryCode} ${number.slice(0, 5)} ${number.slice(5)}`;
+        }
+        return `${countryCode} ${number}`;
+      }
     }
-    return formatted;
+    
+    // If no country code, add +91 (India) by default
+    const cleanNumber = phone.replace(/[\s-]/g, '');
+    if (cleanNumber.length === 10) {
+      return `+91 ${cleanNumber.slice(0, 5)} ${cleanNumber.slice(5)}`;
+    }
+    return `+91 ${cleanNumber}`;
   };
 
   return (
