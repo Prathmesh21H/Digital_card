@@ -1,8 +1,8 @@
+// components/ProfileView.tsx
 'use client';
 import { useEffect, useState } from 'react';
-import { Phone, Mail, Globe, Linkedin, Twitter, Instagram, Facebook, UserPlus, Share2, CheckCircle, Building2, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
+import { Phone, Mail, Globe, Linkedin, Twitter, Instagram, Facebook, Download } from 'lucide-react';
 import QRCode from 'qrcode';
-import { useAuth } from '@/lib/AuthContext';
 
 interface ProfileData {
   slug: string;
@@ -23,34 +23,17 @@ interface ProfileData {
 
 interface ProfileViewProps {
   profile: ProfileData;
-  userId: string;  // Auth UID for ownership check
-  docId: string;   // Firestore document ID for API calls
+  userId: string;
 }
 
-export default function ProfileView({ profile, userId, docId }: ProfileViewProps) {
-  const { user } = useAuth();
+export default function ProfileView({ profile, userId }: ProfileViewProps) {
   const [qrCode, setQrCode] = useState<string>('');
   const [qrLoading, setQrLoading] = useState(true);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [showFullBio, setShowFullBio] = useState(false);
-  
-  // Debug logging - remove after fixing
-  useEffect(() => {
-    console.log('Debug - user:', user);
-    console.log('Debug - user?.uid:', user?.uid);
-    console.log('Debug - userId prop:', userId);
-    console.log('Debug - isOwner:', !!(user?.uid && userId && user.uid === userId));
-  }, [user, userId]);
-  
-  // Fixed ownership check - ensure both values exist before comparing
-  const isOwner = !!(user?.uid && userId && user.uid === userId);
-  
-  const bioLimit = 150;
-  const shouldTruncate = profile.bio && profile.bio.length > bioLimit;
 
   useEffect(() => {
     const generateQRCode = async () => {
       try {
+        // Get the base URL - uses environment variable or current origin
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
         const profileUrl = `${baseUrl}/${profile.slug}`;
         
@@ -58,7 +41,7 @@ export default function ProfileView({ profile, userId, docId }: ProfileViewProps
           width: 300,
           margin: 2,
           color: {
-            dark: '#1a5e3a',
+            dark: '#000000',
             light: '#FFFFFF',
           },
         });
@@ -74,229 +57,82 @@ export default function ProfileView({ profile, userId, docId }: ProfileViewProps
     generateQRCode();
   }, [profile.slug]);
 
-  const handleAddContact = async () => {
+  const handleDownloadVCard = async () => {
     try {
-      // Use docId for the API call (matches the 'userId' param in your API)
-      const response = await fetch(`/api/vcard?userId=${docId}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to fetch vCard:', response.status, errorText);
-        setSaveStatus('error');
-        setTimeout(() => setSaveStatus('idle'), 3000);
-        return;
-      }
-      
+      const response = await fetch(`/api/vcard?userId=${userId}`);
       const blob = await response.blob();
-      
-      // Try native sharing first (mobile devices)
-      if (navigator.share && navigator.canShare) {
-        const file = new File([blob], `${profile.fullName}.vcf`, { type: 'text/vcard' });
-        
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            title: `${profile.fullName}'s Contact`,
-            files: [file]
-          });
-          
-          setSaveStatus('success');
-          setTimeout(() => setSaveStatus('idle'), 3000);
-          return;
-        }
-      }
-      
-      // Fallback to download
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${profile.fullName}.vcf`;
+      a.download = `${profile.slug}.vcf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
-      setSaveStatus('success');
-      setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
-      console.error('Error adding contact:', error);
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      console.error('Error downloading vCard:', error);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Company Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center">
-              <span className="text-2xl font-bold text-green-700">Bharat</span>
-              <span className="text-2xl font-bold text-orange-500 ml-1">Valley</span>
-            </div>
-          </div>
-          {!isOwner && (
-            <button
-              onClick={() => {
-                if (navigator.share) {
-                  navigator.share({
-                    title: `${profile.fullName}'s Digital Card`,
-                    text: `Connect with ${profile.fullName}`,
-                    url: window.location.href
-                  }).catch(err => console.log('Share cancelled', err));
-                } else {
-                  navigator.clipboard.writeText(window.location.href);
-                  alert('Link copied to clipboard!');
-                }
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
-            >
-              <Share2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Main Profile Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          {/* Top Section - Profile Info */}
-          <div className="p-8 pb-6">
-            <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
-              {/* Profile Image */}
-              <div className="flex-shrink-0">
-                {profile.profileImage ? (
-                  <img
-                    src={profile.profileImage}
-                    alt={profile.fullName}
-                    className="w-32 h-32 rounded-2xl object-cover border-4 border-white shadow-md"
-                  />
-                ) : (
-                  <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center text-white text-4xl font-bold border-4 border-white shadow-md">
-                    {profile.fullName.charAt(0)}
-                  </div>
-                )}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          {/* Header with gradient */}
+          <div className="h-32 bg-gradient-to-r from-indigo-500 to-purple-600"></div>
+          
+          {/* Profile Content */}
+          <div className="relative px-6 pb-8">
+            {/* Profile Image */}
+            {profile.profileImage && (
+              <div className="relative -mt-16 mb-4">
+                <img
+                  src={profile.profileImage}
+                  alt={profile.fullName}
+                  className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover mx-auto"
+                />
               </div>
+            )}
 
-              {/* Name and Details */}
-              <div className="flex-1 text-center md:text-left">
-                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-                  {profile.fullName}
-                </h1>
-                
-                {profile.designation && (
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-gray-600 mb-1">
-                    <Briefcase className="w-4 h-4 text-orange-500" />
-                    <span className="text-lg font-medium">{profile.designation}</span>
-                  </div>
-                )}
-                
-                {profile.company && (
-                  <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500 mb-4">
-                    <Building2 className="w-4 h-4 text-green-600" />
-                    <span className="text-base">{profile.company}</span>
-                  </div>
-                )}
-
-                {/* Primary CTA */}
-                <button
-                  onClick={handleAddContact}
-                  className={`inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-sm ${
-                    saveStatus === 'success'
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : saveStatus === 'error'
-                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                      : 'bg-orange-500 hover:bg-orange-600 text-white'
-                  }`}
-                >
-                  {saveStatus === 'success' ? (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      Added Successfully!
-                    </>
-                  ) : saveStatus === 'error' ? (
-                    <>
-                      Error - Try Again
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-5 h-5" />
-                      Add to Contacts
-                    </>
-                  )}
-                </button>
-              </div>
+            {/* Name and Title */}
+            <div className="text-center mb-6">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {profile.fullName}
+              </h1>
+              {profile.designation && (
+                <p className="text-lg text-gray-600">{profile.designation}</p>
+              )}
+              {profile.company && (
+                <p className="text-md text-gray-500">{profile.company}</p>
+              )}
             </div>
-          </div>
 
-          {/* Bio Section */}
-          {profile.bio && (
-            <div className="px-8 pb-6">
-              <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  About
-                </h3>
-                <p className="text-gray-700 leading-relaxed">
-                  {shouldTruncate && !showFullBio
-                    ? `${profile.bio.substring(0, bioLimit)}...`
-                    : profile.bio}
-                </p>
-                {shouldTruncate && (
-                  <button
-                    onClick={() => setShowFullBio(!showFullBio)}
-                    className="flex items-center gap-1 text-orange-500 hover:text-orange-600 font-medium mt-3 transition-colors"
-                  >
-                    {showFullBio ? (
-                      <>
-                        <span>Show Less</span>
-                        <ChevronUp className="w-4 h-4" />
-                      </>
-                    ) : (
-                      <>
-                        <span>Read More</span>
-                        <ChevronDown className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                )}
+            {/* Bio */}
+            {profile.bio && (
+              <div className="mb-6 text-center">
+                <p className="text-gray-700 leading-relaxed">{profile.bio}</p>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Contact Information */}
-          <div className="px-8 pb-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-              Contact Information
-            </h3>
-            <div className="grid md:grid-cols-2 gap-3">
+            {/* Contact Information */}
+            <div className="space-y-3 mb-6">
               {profile.phone && (
                 <a
                   href={`tel:${profile.phone}`}
-                  className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
                 >
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                    <Phone className="w-5 h-5 text-green-700" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500 font-medium">Phone</p>
-                    <p className="text-gray-900 font-semibold truncate">{profile.phone}</p>
-                  </div>
+                  <Phone className="w-5 h-5 text-indigo-600" />
+                  <span className="text-gray-700">{profile.phone}</span>
                 </a>
               )}
               
               {profile.email && (
                 <a
                   href={`mailto:${profile.email}`}
-                  className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50 transition-all group"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
                 >
-                  <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                    <Mail className="w-5 h-5 text-orange-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500 font-medium">Email</p>
-                    <p className="text-gray-900 font-semibold truncate">{profile.email}</p>
-                  </div>
+                  <Mail className="w-5 h-5 text-indigo-600" />
+                  <span className="text-gray-700">{profile.email}</span>
                 </a>
               )}
               
@@ -305,130 +141,112 @@ export default function ProfileView({ profile, userId, docId }: ProfileViewProps
                   href={profile.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all group md:col-span-2"
+                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition"
                 >
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                    <Globe className="w-5 h-5 text-green-700" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500 font-medium">Website</p>
-                    <p className="text-gray-900 font-semibold truncate">{profile.website}</p>
-                  </div>
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
+                  <Globe className="w-5 h-5 text-indigo-600" />
+                  <span className="text-gray-700">Visit Website</span>
                 </a>
               )}
             </div>
-          </div>
 
-          {/* Social Links */}
-          {(profile.linkedin || profile.twitter || profile.instagram || profile.facebook) && (
-            <div className="px-8 pb-6">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
-                Social Media
-              </h3>
-              <div className="flex flex-wrap gap-3">
-                {profile.linkedin && (
-                  <a
-                    href={profile.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:border-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-all font-medium"
-                  >
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn
-                  </a>
-                )}
-                
-                {profile.twitter && (
-                  <a
-                    href={profile.twitter}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 hover:text-sky-700 transition-all font-medium"
-                  >
-                    <Twitter className="w-4 h-4" />
-                    Twitter
-                  </a>
-                )}
-                
-                {profile.instagram && (
-                  <a
-                    href={profile.instagram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:border-pink-500 hover:bg-pink-50 hover:text-pink-700 transition-all font-medium"
-                  >
-                    <Instagram className="w-4 h-4" />
-                    Instagram
-                  </a>
-                )}
-                
-                {profile.facebook && (
-                  <a
-                    href={profile.facebook}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-lg hover:border-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-all font-medium"
-                  >
-                    <Facebook className="w-4 h-4" />
-                    Facebook
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* QR Code Section - Only visible to owner */}
-          {/* Debug info - remove after fixing */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="px-8 pb-4 text-xs text-gray-500 font-mono">
-              <div>user?.uid: {user?.uid || 'undefined'}</div>
-              <div>userId prop: {userId || 'undefined'}</div>
-              <div>docId prop: {docId || 'undefined'}</div>
-              <div>isOwner: {isOwner ? 'true' : 'false'}</div>
-            </div>
-          )}
-          
-          {isOwner && (
-            <div className="px-8 pb-8">
-              <div className="bg-gradient-to-br from-green-50 to-orange-50 rounded-xl p-6 border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 text-center">
-                  Your QR Code
+            {/* Social Links */}
+            {(profile.linkedin || profile.twitter || profile.instagram || profile.facebook) && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  Connect
                 </h3>
-                <div className="flex justify-center">
-                  {qrLoading ? (
-                    <div className="w-48 h-48 flex items-center justify-center bg-white rounded-xl">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                    </div>
-                  ) : qrCode ? (
-                    <div className="bg-white p-4 rounded-xl shadow-sm">
-                      <img
-                        src={qrCode}
-                        alt="QR Code"
-                        className="w-48 h-48"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-48 h-48 flex items-center justify-center text-gray-400 bg-white rounded-xl">
-                      Unable to generate QR code
-                    </div>
+                <div className="flex flex-wrap gap-3">
+                  {profile.linkedin && (
+                    <a
+                      href={profile.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition"
+                    >
+                      <Linkedin className="w-4 h-4" />
+                      LinkedIn
+                    </a>
+                  )}
+                  
+                  {profile.twitter && (
+                    <a
+                      href={profile.twitter}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-sky-50 text-sky-700 rounded-lg hover:bg-sky-100 transition"
+                    >
+                      <Twitter className="w-4 h-4" />
+                      Twitter
+                    </a>
+                  )}
+                  
+                  {profile.instagram && (
+                    <a
+                      href={profile.instagram}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 transition"
+                    >
+                      <Instagram className="w-4 h-4" />
+                      Instagram
+                    </a>
+                  )}
+                  
+                  {profile.facebook && (
+                    <a
+                      href={profile.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition"
+                    >
+                      <Facebook className="w-4 h-4" />
+                      Facebook
+                    </a>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 mt-4 text-center">
-                  Share this QR code to let others connect with you instantly
-                </p>
+              </div>
+            )}
+
+            {/* QR Code - Dynamically Generated */}
+            <div className="mb-6 text-center">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Share My Card
+              </h3>
+              <div className="inline-block p-4 bg-white border-2 border-gray-200 rounded-lg">
+                {qrLoading ? (
+                  <div className="w-48 h-48 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  </div>
+                ) : qrCode ? (
+                  <img
+                    src={qrCode}
+                    alt="QR Code"
+                    className="w-48 h-48"
+                  />
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center text-gray-400">
+                    Unable to generate QR code
+                  </div>
+                )}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8 pb-4">
-          <p className="text-sm text-gray-500">
-            Powered by <span className="font-semibold text-green-700">Bharat</span><span className="font-semibold text-orange-500">Valley</span>
-          </p>
+            {/* Save Contact Button */}
+            <button
+              onClick={handleDownloadVCard}
+              className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-4 rounded-xl font-semibold hover:bg-indigo-700 transition shadow-lg"
+            >
+              <Download className="w-5 h-5" />
+              Save to Contacts
+            </button>
+
+            {/* Footer */}
+            <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+              <p className="text-sm text-gray-500">
+                Powered by Digital Visiting Card
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
