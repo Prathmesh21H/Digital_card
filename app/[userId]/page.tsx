@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/[slug]/page.tsx
-import { getDocs, collection, query, where } from 'firebase/firestore';
+// app/[userId]/page.tsx
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { notFound } from 'next/navigation';
 import ProfileView from '@/components/ProfileView';
 
 interface ProfileData {
-  slug: string;
   fullName: string;
   designation?: string;
   company?: string;
@@ -19,13 +18,11 @@ interface ProfileData {
   twitter?: string;
   instagram?: string;
   facebook?: string;
-  qrCodeUrl?: string;
 }
 
 // Serialize function to convert Firestore data to plain objects
 function serializeProfile(data: any): ProfileData {
   return {
-    slug: data.slug || '',
     fullName: data.fullName || '',
     designation: data.designation || undefined,
     company: data.company || undefined,
@@ -38,58 +35,52 @@ function serializeProfile(data: any): ProfileData {
     twitter: data.twitter || undefined,
     instagram: data.instagram || undefined,
     facebook: data.facebook || undefined,
-    qrCodeUrl: data.qrCodeUrl || undefined,
   };
 }
 
-async function getProfileBySlug(slug: string): Promise<{ profile: ProfileData; userId: string } | null> {
+async function getProfileByUserId(userId: string): Promise<ProfileData | null> {
   try {
-    const q = query(collection(db, 'profiles'), where('slug', '==', slug));
-    const querySnapshot = await getDocs(q);
+    const profileDoc = await getDoc(doc(db, 'profiles', userId));
     
-    if (querySnapshot.empty) {
+    if (!profileDoc.exists()) {
       return null;
     }
 
-    const profileDoc = querySnapshot.docs[0];
     const rawData = profileDoc.data();
-    
-    // Serialize the data to remove Firestore-specific objects
-    const serializedProfile = serializeProfile(rawData);
-    
-    return {
-      profile: serializedProfile,
-      userId: profileDoc.id,
-    };
+    return serializeProfile(rawData);
   } catch (error) {
     console.error('Error fetching profile:', error);
     return null;
   }
 }
 
-export default async function ProfilePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const data = await getProfileBySlug(slug);
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-  if (!data) {
+export default async function ProfilePage({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
+  const profile = await getProfileByUserId(userId);
+
+  if (!profile) {
     notFound();
   }
 
-  return <ProfileView profile={data.profile} userId={data.userId} />;
+  return <ProfileView profile={profile} userId={userId} />;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const data = await getProfileBySlug(slug);
+export async function generateMetadata({ params }: { params: Promise<{ userId: string }> }) {
+  const { userId } = await params;
+  const profile = await getProfileByUserId(userId);
 
-  if (!data) {
+  if (!profile) {
     return {
       title: 'Profile Not Found',
     };
   }
 
   return {
-    title: `${data.profile.fullName} - Digital Visiting Card`,
-    description: data.profile.bio || `View ${data.profile.fullName}'s digital visiting card`,
+    title: `${profile.fullName} - Digital Visiting Card`,
+    description: profile.bio || `View ${profile.fullName}'s digital visiting card`,
   };
 }

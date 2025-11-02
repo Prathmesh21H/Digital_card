@@ -5,7 +5,6 @@ import QRCode from 'qrcode';
 import { useAuth } from '@/lib/AuthContext';
 
 interface ProfileData {
-  slug: string;
   fullName: string;
   designation?: string;
   company?: string;
@@ -18,7 +17,6 @@ interface ProfileData {
   twitter?: string;
   instagram?: string;
   facebook?: string;
-  qrCodeUrl?: string;
 }
 
 interface ProfileViewProps {
@@ -46,7 +44,7 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
     const generateQRCode = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
-        const profileUrl = `${baseUrl}/${profile.slug}`;
+        const profileUrl = `${baseUrl}/${userId}`;
         
         const qrDataUrl = await QRCode.toDataURL(profileUrl, {
           width: 300,
@@ -70,7 +68,7 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
     } else {
       setQrLoading(false);
     }
-  }, [profile.slug, isOwner]);
+  }, [userId, isOwner]);
 
   const handleDownloadVCard = async () => {
     try {
@@ -79,7 +77,7 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${profile.slug}.vcf`;
+      a.download = `${profile.fullName.replace(/\s+/g, '-')}.vcf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -168,8 +166,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
             {/* Contact Information */}
             <div className="space-y-3 mb-6">
               {profile.phone && (
-                <a
-                  href={`tel:${profile.phone}`}
+                
+                <a href={`tel:${profile.phone}`}
                   className="flex items-center gap-3 p-4 rounded-xl hover:bg-orange-50 transition border-2 border-transparent hover:border-orange-300"
                 >
                   <div className="bg-orange-500 p-2 rounded-lg">
@@ -180,8 +178,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
               )}
               
               {profile.email && (
-                <a
-                  href={`mailto:${profile.email}`}
+                
+                <a href={`mailto:${profile.email}`}
                   className="flex items-center gap-3 p-4 rounded-xl hover:bg-green-50 transition border-2 border-transparent hover:border-green-300"
                 >
                   <div className="bg-green-600 p-2 rounded-lg">
@@ -192,8 +190,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
               )}
               
               {profile.website && (
-                <a
-                  href={profile.website}
+                
+                <a href={profile.website}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-4 rounded-xl hover:bg-orange-50 transition border-2 border-transparent hover:border-orange-300"
@@ -214,8 +212,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
                 </h3>
                 <div className="flex flex-wrap gap-3 justify-center">
                   {profile.linkedin && (
-                    <a
-                      href={profile.linkedin}
+                    
+                    <a href={profile.linkedin}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
@@ -226,8 +224,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
                   )}
                   
                   {profile.twitter && (
-                    <a
-                      href={profile.twitter}
+                    
+                    <a href={profile.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition shadow-md"
@@ -238,8 +236,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
                   )}
                   
                   {profile.instagram && (
-                    <a
-                      href={profile.instagram}
+                    
+                    <a href={profile.instagram}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition shadow-md"
@@ -250,8 +248,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
                   )}
                   
                   {profile.facebook && (
-                    <a
-                      href={profile.facebook}
+                    
+                    <a href={profile.facebook}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition shadow-md"

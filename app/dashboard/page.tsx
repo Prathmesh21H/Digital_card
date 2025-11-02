@@ -137,7 +137,7 @@ export default function DashboardPage() {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
               <div className="space-y-3">
                 <Link
-                  href={`/${profile.slug}`}
+                  href={`/${user.uid}`}
                   target="_blank"
                   className="block w-full px-4 py-3 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition text-center font-medium"
                 >

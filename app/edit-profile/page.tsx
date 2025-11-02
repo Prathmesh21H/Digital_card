@@ -110,52 +110,57 @@ export default function EditProfilePage() {
       .replace(/(^-|-$)/g, '');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
+// Remove slug from ProfileData interface and all slug-related code
+// Just save the profile directly without worrying about slugs
 
-    setError('');
-    setSuccess('');
-    setSaving(true);
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!user) return;
 
-    try {
-      let imageUrl = formData.profileImage;
-      
-      // Upload image if new one selected
-      if (imageFile) {
-        setUploading(true);
-        imageUrl = await uploadToCloudinary(imageFile);
-        setUploading(false);
-      }
+  setError('');
+  setSuccess('');
+  setSaving(true);
 
-      // Generate slug if not exists
-      let slug = formData.slug;
-      if (!slug) {
-        slug = generateSlug(formData.fullName);
-      }
-
-      // Save to Firestore without QR code URL
-      // QR code will be generated dynamically on the profile page
-      const profileData = {
-        ...formData,
-        slug,
-        profileImage: imageUrl,
-        updatedAt: new Date(),
-      };
-
-      await setDoc(doc(db, 'profiles', user.uid), profileData);
-
-      setSuccess('Profile saved successfully!');
-      setTimeout(() => {
-        router.push('/dashboard');
-      }, 1500);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save profile');
-    } finally {
-      setSaving(false);
+  try {
+    let imageUrl = formData.profileImage;
+    
+    if (imageFile) {
+      setUploading(true);
+      imageUrl = await uploadToCloudinary(imageFile);
       setUploading(false);
     }
-  };
+
+    // Save directly with user.uid as document ID
+    const profileData = {
+      fullName: formData.fullName,
+      designation: formData.designation,
+      company: formData.company,
+      bio: formData.bio,
+      profileImage: imageUrl,
+      phone: formData.phone,
+      email: formData.email,
+      website: formData.website,
+      linkedin: formData.linkedin,
+      twitter: formData.twitter,
+      instagram: formData.instagram,
+      facebook: formData.facebook,
+      updatedAt: new Date(),
+    };
+
+    await setDoc(doc(db, 'profiles', user.uid), profileData);
+
+    setSuccess('Profile saved successfully!');
+    setTimeout(() => {
+      router.push('/dashboard');
+    }, 1500);
+  } catch (err: any) {
+    setError(err.message || 'Failed to save profile');
+  } finally {
+    setSaving(false);
+    setUploading(false);
+  }
+};
+
 
   if (loading) {
     return (
@@ -195,7 +200,7 @@ export default function EditProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Profile Image */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Profile Image
               </label>
               <div className="flex items-center gap-4">
@@ -210,14 +215,14 @@ export default function EditProfilePage() {
                   type="file"
                   accept="image/*"
                   onChange={handleImageChange}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  className="block w-full text-sm text-gray-900 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                 />
               </div>
             </div>
 
             {/* Full Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Full Name *
               </label>
               <input
@@ -225,49 +230,49 @@ export default function EditProfilePage() {
                 required
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                 placeholder="John Doe"
               />
             </div>
 
             {/* Designation */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Designation
               </label>
               <input
                 type="text"
                 value={formData.designation}
                 onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                 placeholder="Software Engineer"
               />
             </div>
 
             {/* Company */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Company
               </label>
               <input
                 type="text"
                 value={formData.company}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                 placeholder="Acme Inc."
               />
             </div>
 
             {/* Bio */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Bio
               </label>
               <textarea
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                 placeholder="Tell us about yourself..."
               />
             </div>
@@ -275,27 +280,27 @@ export default function EditProfilePage() {
             {/* Contact Info */}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Phone
                 </label>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="+91 9999999999"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Email
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="john@example.com"
                 />
               </div>
@@ -303,14 +308,14 @@ export default function EditProfilePage() {
 
             {/* Website */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Website
               </label>
               <input
                 type="url"
                 value={formData.website}
                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                 placeholder="https://yourwebsite.com"
               />
             </div>
@@ -320,53 +325,53 @@ export default function EditProfilePage() {
               <h3 className="text-lg font-semibold text-gray-900">Social Links</h3>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   LinkedIn
                 </label>
                 <input
                   type="url"
                   value={formData.linkedin}
                   onChange={(e) => setFormData({ ...formData, linkedin: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="https://linkedin.com/in/username"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Twitter
                 </label>
                 <input
                   type="url"
                   value={formData.twitter}
                   onChange={(e) => setFormData({ ...formData, twitter: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="https://twitter.com/username"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Instagram
                 </label>
                 <input
                   type="url"
                   value={formData.instagram}
                   onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="https://instagram.com/username"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Facebook
                 </label>
                 <input
                   type="url"
                   value={formData.facebook}
                   onChange={(e) => setFormData({ ...formData, facebook: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder-gray-500"
                   placeholder="https://facebook.com/username"
                 />
               </div>
