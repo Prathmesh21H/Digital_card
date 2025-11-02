@@ -377,7 +377,8 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
             <div className="mt-10 pt-6 border-t border-gray-200 text-center">
               <p className="text-xs text-gray-400 font-normal">
                 Powered by <span className="font-medium" style={{ color: colors.primary }}>
-                  {profile.company || 'Bharat Valley'}
+                  {/* {profile.company || 'Bharat Valley'} */}
+                  Bharat Valley Incubator & Accelerator Private Limited
                 </span>
               </p>
             </div>
