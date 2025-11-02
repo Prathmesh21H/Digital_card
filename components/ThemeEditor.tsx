@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Upload, X, Palette } from 'lucide-react';
+import { Upload, X, Palette, Pipette } from 'lucide-react';
 
 interface ThemeEditorProps {
   currentLogo?: string;
@@ -9,14 +9,22 @@ interface ThemeEditorProps {
 }
 
 const colorOptions = [
-  { name: 'Orange', value: 'orange', preview: 'bg-orange-500' },
-  { name: 'Blue', value: 'blue', preview: 'bg-blue-600' },
-  { name: 'Purple', value: 'purple', preview: 'bg-purple-600' },
-  { name: 'Red', value: 'red', preview: 'bg-red-600' },
-  { name: 'Green', value: 'green', preview: 'bg-green-600' },
-  { name: 'Teal', value: 'teal', preview: 'bg-teal-600' },
-  { name: 'Pink', value: 'pink', preview: 'bg-pink-600' },
-  { name: 'Indigo', value: 'indigo', preview: 'bg-indigo-600' },
+  { name: 'Orange', value: 'orange', hex: '#f97316' },
+  { name: 'Blue', value: 'blue', hex: '#2563eb' },
+  { name: 'Purple', value: 'purple', hex: '#9333ea' },
+  { name: 'Red', value: 'red', hex: '#dc2626' },
+  { name: 'Green', value: 'green', hex: '#16a34a' },
+  { name: 'Teal', value: 'teal', hex: '#0d9488' },
+  { name: 'Pink', value: 'pink', hex: '#ec4899' },
+  { name: 'Indigo', value: 'indigo', hex: '#4f46e5' },
+  { name: 'Cyan', value: 'cyan', hex: '#06b6d4' },
+  { name: 'Amber', value: 'amber', hex: '#f59e0b' },
+  { name: 'Lime', value: 'lime', hex: '#84cc16' },
+  { name: 'Emerald', value: 'emerald', hex: '#10b981' },
+  { name: 'Sky', value: 'sky', hex: '#0ea5e9' },
+  { name: 'Violet', value: 'violet', hex: '#8b5cf6' },
+  { name: 'Fuchsia', value: 'fuchsia', hex: '#d946ef' },
+  { name: 'Rose', value: 'rose', hex: '#f43f5e' },
 ];
 
 export default function ThemeEditor({ 
@@ -29,6 +37,10 @@ export default function ThemeEditor({
   const [logoUrl, setLogoUrl] = useState(currentLogo || '');
   const [primaryColor, setPrimaryColor] = useState(currentPrimaryColor);
   const [secondaryColor, setSecondaryColor] = useState(currentSecondaryColor);
+  const [customPrimaryHex, setCustomPrimaryHex] = useState('');
+  const [customSecondaryHex, setCustomSecondaryHex] = useState('');
+  const [showPrimaryPicker, setShowPrimaryPicker] = useState(false);
+  const [showSecondaryPicker, setShowSecondaryPicker] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [logoPreview, setLogoPreview] = useState(currentLogo || '');
@@ -46,7 +58,6 @@ export default function ThemeEditor({
     const formData = new FormData();
     formData.append('file', file);
     
-    // Using your credentials: dmhr3fumd and my_unsigned_preset
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dmhr3fumd';
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'my_unsigned_preset';
     
@@ -77,13 +88,11 @@ export default function ThemeEditor({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setError('Logo file size must be less than 5MB');
       return;
     }
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Please upload an image file');
       return;
@@ -93,7 +102,6 @@ export default function ThemeEditor({
     setIsUploading(true);
 
     try {
-      // Upload to Cloudinary and get URL
       const uploadedUrl = await uploadToCloudinary(file);
       setLogoUrl(uploadedUrl);
       setLogoPreview(uploadedUrl);
@@ -103,6 +111,20 @@ export default function ThemeEditor({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleCustomPrimaryColor = (hex: string) => {
+    setCustomPrimaryHex(hex);
+    setPrimaryColor(hex);
+  };
+
+  const handleCustomSecondaryColor = (hex: string) => {
+    setCustomSecondaryHex(hex);
+    setSecondaryColor(hex);
+  };
+
+  const isValidHex = (hex: string) => {
+    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(hex);
   };
 
   const handleSave = async () => {
@@ -117,6 +139,8 @@ export default function ThemeEditor({
     try {
       await onSave(logoUrl, primaryColor, secondaryColor);
       setIsEditing(false);
+      setShowPrimaryPicker(false);
+      setShowSecondaryPicker(false);
     } catch (error) {
       console.error('Error saving theme:', error);
       setError('Failed to save theme. Please try again.');
@@ -126,13 +150,23 @@ export default function ThemeEditor({
   };
 
   const handleCancel = () => {
-    // Reset to current values
     setLogoUrl(currentLogo || '');
     setLogoPreview(currentLogo || '');
     setPrimaryColor(currentPrimaryColor);
     setSecondaryColor(currentSecondaryColor);
+    setCustomPrimaryHex('');
+    setCustomSecondaryHex('');
+    setShowPrimaryPicker(false);
+    setShowSecondaryPicker(false);
     setError('');
     setIsEditing(false);
+  };
+
+  const getColorPreview = (color: string) => {
+    const preset = colorOptions.find(c => c.value === color);
+    if (preset) return preset.hex;
+    if (isValidHex(color)) return color;
+    return '#f97316'; // Default orange
   };
 
   if (!isEditing) {
@@ -167,15 +201,25 @@ export default function ThemeEditor({
             <div>
               <p className="text-sm text-gray-600 mb-2">Primary Color</p>
               <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-lg bg-${primaryColor}-500 border-2 border-gray-300`}></div>
-                <span className="text-sm font-medium text-gray-700 capitalize">{primaryColor}</span>
+                <div 
+                  className="w-8 h-8 rounded-lg border-2 border-gray-300"
+                  style={{ backgroundColor: getColorPreview(primaryColor) }}
+                ></div>
+                <span className="text-sm font-medium text-gray-700 capitalize">
+                  {colorOptions.find(c => c.value === primaryColor)?.name || 'Custom'}
+                </span>
               </div>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-2">Secondary Color</p>
               <div className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-lg bg-${secondaryColor}-600 border-2 border-gray-300`}></div>
-                <span className="text-sm font-medium text-gray-700 capitalize">{secondaryColor}</span>
+                <div 
+                  className="w-8 h-8 rounded-lg border-2 border-gray-300"
+                  style={{ backgroundColor: getColorPreview(secondaryColor) }}
+                ></div>
+                <span className="text-sm font-medium text-gray-700 capitalize">
+                  {colorOptions.find(c => c.value === secondaryColor)?.name || 'Custom'}
+                </span>
               </div>
             </div>
           </div>
@@ -242,9 +286,6 @@ export default function ThemeEditor({
               />
             </label>
           </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Logo will be uploaded to Cloudinary for optimized delivery
-          </p>
         </div>
 
         {/* Primary Color */}
@@ -252,22 +293,65 @@ export default function ThemeEditor({
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Primary Color
           </label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-3 mb-3">
             {colorOptions.map((color) => (
               <button
                 key={color.value}
                 type="button"
-                onClick={() => setPrimaryColor(color.value)}
+                onClick={() => {
+                  setPrimaryColor(color.value);
+                  setCustomPrimaryHex('');
+                  setShowPrimaryPicker(false);
+                }}
                 className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition ${
                   primaryColor === color.value
                     ? 'border-purple-500 bg-purple-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-lg ${color.preview}`}></div>
+                <div className="w-10 h-10 rounded-lg" style={{ backgroundColor: color.hex }}></div>
                 <span className="text-xs font-medium text-gray-700">{color.name}</span>
               </button>
             ))}
+          </div>
+          
+          {/* Custom Primary Color Picker */}
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setShowPrimaryPicker(!showPrimaryPicker)}
+              className="flex items-center gap-2 text-sm font-medium text-purple-600 hover:text-purple-700 mb-3"
+            >
+              <Pipette className="w-4 h-4" />
+              {showPrimaryPicker ? 'Hide' : 'Use'} Custom Color
+            </button>
+            
+            {showPrimaryPicker && (
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <input
+                    type="color"
+                    value={getColorPreview(primaryColor)}
+                    onChange={(e) => handleCustomPrimaryColor(e.target.value)}
+                    className="w-16 h-10 rounded border-2 border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    placeholder="#000000"
+                    value={customPrimaryHex || (isValidHex(primaryColor) ? primaryColor : '')}
+                    onChange={(e) => {
+                      const hex = e.target.value;
+                      setCustomPrimaryHex(hex);
+                      if (isValidHex(hex)) {
+                        setPrimaryColor(hex);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">Enter a hex color code (e.g., #FF5733)</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -276,22 +360,65 @@ export default function ThemeEditor({
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Secondary Color
           </label>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-4 gap-3 mb-3">
             {colorOptions.map((color) => (
               <button
                 key={color.value}
                 type="button"
-                onClick={() => setSecondaryColor(color.value)}
+                onClick={() => {
+                  setSecondaryColor(color.value);
+                  setCustomSecondaryHex('');
+                  setShowSecondaryPicker(false);
+                }}
                 className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition ${
                   secondaryColor === color.value
                     ? 'border-purple-500 bg-purple-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className={`w-10 h-10 rounded-lg ${color.preview}`}></div>
+                <div className="w-10 h-10 rounded-lg" style={{ backgroundColor: color.hex }}></div>
                 <span className="text-xs font-medium text-gray-700">{color.name}</span>
               </button>
             ))}
+          </div>
+          
+          {/* Custom Secondary Color Picker */}
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setShowSecondaryPicker(!showSecondaryPicker)}
+              className="flex items-center gap-2 text-sm font-medium text-purple-600 hover:text-purple-700 mb-3"
+            >
+              <Pipette className="w-4 h-4" />
+              {showSecondaryPicker ? 'Hide' : 'Use'} Custom Color
+            </button>
+            
+            {showSecondaryPicker && (
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <input
+                    type="color"
+                    value={getColorPreview(secondaryColor)}
+                    onChange={(e) => handleCustomSecondaryColor(e.target.value)}
+                    className="w-16 h-10 rounded border-2 border-gray-300 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    placeholder="#000000"
+                    value={customSecondaryHex || (isValidHex(secondaryColor) ? secondaryColor : '')}
+                    onChange={(e) => {
+                      const hex = e.target.value;
+                      setCustomSecondaryHex(hex);
+                      if (isValidHex(hex)) {
+                        setSecondaryColor(hex);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm font-mono"
+                  />
+                </div>
+                <p className="text-xs text-gray-500">Enter a hex color code (e.g., #10B981)</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -299,10 +426,16 @@ export default function ThemeEditor({
         <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-4 border border-gray-200">
           <p className="text-sm font-medium text-gray-700 mb-3">Preview</p>
           <div className="flex items-center gap-3">
-            <div className={`px-4 py-2 rounded-lg bg-${primaryColor}-500 text-white text-sm font-medium`}>
+            <div 
+              className="px-4 py-2 rounded-lg text-white text-sm font-medium"
+              style={{ backgroundColor: getColorPreview(primaryColor) }}
+            >
               Primary
             </div>
-            <div className={`px-4 py-2 rounded-lg bg-${secondaryColor}-600 text-white text-sm font-medium`}>
+            <div 
+              className="px-4 py-2 rounded-lg text-white text-sm font-medium"
+              style={{ backgroundColor: getColorPreview(secondaryColor) }}
+            >
               Secondary
             </div>
           </div>

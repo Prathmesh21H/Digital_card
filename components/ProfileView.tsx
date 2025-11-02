@@ -35,6 +35,34 @@ const colorMap: Record<string, { primary: string; secondary: string; light: stri
   teal: { primary: '#0d9488', secondary: '#0f766e', light: '#5eead4', lighter: '#99f6e4' },
   pink: { primary: '#ec4899', secondary: '#db2777', light: '#f9a8d4', lighter: '#fbcfe8' },
   indigo: { primary: '#4f46e5', secondary: '#4338ca', light: '#a5b4fc', lighter: '#c7d2fe' },
+  cyan: { primary: '#06b6d4', secondary: '#0891b2', light: '#a5f3fc', lighter: '#cffafe' },
+  amber: { primary: '#f59e0b', secondary: '#d97706', light: '#fcd34d', lighter: '#fef3c7' },
+  lime: { primary: '#84cc16', secondary: '#65a30d', light: '#d9f99d', lighter: '#ecfccb' },
+  emerald: { primary: '#10b981', secondary: '#059669', light: '#6ee7b7', lighter: '#d1fae5' },
+  sky: { primary: '#0ea5e9', secondary: '#0284c7', light: '#7dd3fc', lighter: '#e0f2fe' },
+  violet: { primary: '#8b5cf6', secondary: '#7c3aed', light: '#c4b5fd', lighter: '#ede9fe' },
+  fuchsia: { primary: '#d946ef', secondary: '#c026d3', light: '#f0abfc', lighter: '#fae8ff' },
+  rose: { primary: '#f43f5e', secondary: '#e11d48', light: '#fda4af', lighter: '#ffe4e6' },
+};
+
+// Helper to check if a color is a hex code
+const isHexColor = (color: string): boolean => {
+  return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
+};
+
+// Helper to adjust hex color brightness
+const adjustHexBrightness = (hex: string, percent: number): string => {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = (num >> 8 & 0x00FF) + amt;
+  const B = (num & 0x0000FF) + amt;
+  return '#' + (
+    0x1000000 +
+    (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+    (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+    (B < 255 ? (B < 1 ? 0 : B) : 255)
+  ).toString(16).slice(1);
 };
 
 export default function ProfileView({ profile, userId }: ProfileViewProps) {
@@ -48,16 +76,40 @@ export default function ProfileView({ profile, userId }: ProfileViewProps) {
   const secondaryColor = profile.secondaryColor || 'green';
   const logoUrl = profile.logoUrl || '/logo-bharat-valley.svg';
   
-  // Get actual hex colors
+  // Get actual hex colors - support both preset names and custom hex
+  const getColorShades = (color: string) => {
+    if (isHexColor(color)) {
+      // Custom hex color
+      return {
+        primary: color,
+        primaryDark: adjustHexBrightness(color, -15),
+        primaryLight: adjustHexBrightness(color, 40),
+        primaryLighter: adjustHexBrightness(color, 60),
+      };
+    } else {
+      // Preset color name
+      const preset = colorMap[color] || colorMap.orange;
+      return {
+        primary: preset.primary,
+        primaryDark: preset.secondary,
+        primaryLight: preset.light,
+        primaryLighter: preset.lighter,
+      };
+    }
+  };
+
+  const primaryShades = getColorShades(primaryColor);
+  const secondaryShades = getColorShades(secondaryColor);
+
   const colors = {
-    primary: colorMap[primaryColor]?.primary || colorMap.orange.primary,
-    primaryDark: colorMap[primaryColor]?.secondary || colorMap.orange.secondary,
-    primaryLight: colorMap[primaryColor]?.light || colorMap.orange.light,
-    primaryLighter: colorMap[primaryColor]?.lighter || colorMap.orange.lighter,
-    secondary: colorMap[secondaryColor]?.primary || colorMap.green.primary,
-    secondaryDark: colorMap[secondaryColor]?.secondary || colorMap.green.secondary,
-    secondaryLight: colorMap[secondaryColor]?.light || colorMap.green.light,
-    secondaryLighter: colorMap[secondaryColor]?.lighter || colorMap.green.lighter,
+    primary: primaryShades.primary,
+    primaryDark: primaryShades.primaryDark,
+    primaryLight: primaryShades.primaryLight,
+    primaryLighter: primaryShades.primaryLighter,
+    secondary: secondaryShades.primary,
+    secondaryDark: secondaryShades.primaryDark,
+    secondaryLight: secondaryShades.primaryLight,
+    secondaryLighter: secondaryShades.primaryLighter,
   };
   
   // Check if bio needs "Read More"
