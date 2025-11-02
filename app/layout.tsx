@@ -7,7 +7,7 @@ import { AuthProvider } from '@/lib/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Digital Visiting Card',
+  title: 'Bharat Valley Connects',
   description: 'Your permanent digital visiting card platform',
 };
 
