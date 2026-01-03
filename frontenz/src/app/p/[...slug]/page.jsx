@@ -19,8 +19,6 @@ import {
 export default function PublicCardPage() {
   const params = useParams();
 
-  // 1. RECONSTRUCT THE LINK
-  // Takes ['card', 'fd22...'] and turns it back into "card/fd22..."
   const rawSlug = params?.slug;
   const cardLinkString = Array.isArray(rawSlug) ? rawSlug.join("/") : rawSlug;
 
@@ -38,9 +36,6 @@ export default function PublicCardPage() {
         const API_URL =
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
-        // 2. FIX: Send Raw Link (Do not encodeURIComponent)
-        // Since your backend Regex captures the full path including slashes,
-        // we send "card/uuid" literally so it matches the DB string exactly.
         const response = await axios.get(
           `${API_URL}/cards/public/${cardLinkString}`
         );
@@ -50,7 +45,14 @@ export default function PublicCardPage() {
 
         if (!cardData) throw new Error("No data found");
 
-        setCard(cardData);
+        // CHANGE: Apply defaults to ensure the page doesn't crash if new fields are missing
+        setCard({
+          ...cardData,
+          banner: cardData.banner || { type: "color", value: "#2563eb" },
+          layout: cardData.layout || "minimal",
+          fontStyle: cardData.fontStyle || "basic",
+        });
+
         setError(false);
       } catch (err) {
         console.error("Error fetching card:", err);
@@ -72,34 +74,45 @@ export default function PublicCardPage() {
     }`;
   };
 
+  // --- KEY CHANGES FOR ALIGNMENT HERE ---
   const getLayoutClasses = () => {
     if (!card) return {};
+
+    // Common classes for robust alignment (ensures square shape and centered image/text)
+    const commonWrapperClasses =
+      "aspect-square flex items-center justify-center bg-slate-200 overflow-hidden border-4 border-white z-10";
+
     switch (card.layout) {
       case "modern":
         return {
           container: "text-left",
           headerWrapper: "relative",
-          avatarWrapper:
-            "relative size-28 rounded-xl border-4 border-white bg-slate-200 overflow-hidden shadow-md -mt-14 z-10 ml-6",
-          info: "mt-4 px-6",
+          // FIXED:
+          // 1. Changed to 'absolute' to prevent clipping at the top.
+          // 2. Used '-bottom-14' (3.5rem) to overlap the banner edge exactly halfway.
+          // 3. 'left-6' positions it to the left side.
+          avatarWrapper: `absolute -bottom-14 left-6 size-28 rounded-xl shadow-md ${commonWrapperClasses}`,
+
+          // FIXED: Increased margin-top to 'mt-20' so the name text isn't hidden behind the avatar.
+          info: "mt-20 px-6",
           links: "mt-8 px-6 space-y-3 pb-8",
         };
+
       case "creative":
         return {
           container: "text-center",
           headerWrapper: "relative flex justify-center items-center",
-          avatarWrapper:
-            "absolute -bottom-16 left-1/2 transform -translate-x-1/2 size-32 rounded-full border-4 border-white/50 backdrop-blur-sm bg-slate-200 overflow-hidden shadow-xl z-10",
+          avatarWrapper: `absolute -bottom-16 left-1/2 transform -translate-x-1/2 size-32 rounded-full shadow-xl border-white/50 backdrop-blur-sm ${commonWrapperClasses}`,
           info: "mt-20 px-6",
           links: "mt-8 px-6 space-y-3 pb-8",
         };
+
       case "minimal":
       default:
         return {
           container: "text-center",
           headerWrapper: "relative",
-          avatarWrapper:
-            "absolute -bottom-12 left-1/2 transform -translate-x-1/2 size-28 rounded-full border-4 border-white bg-slate-200 overflow-hidden shadow-md",
+          avatarWrapper: `absolute -bottom-12 left-1/2 transform -translate-x-1/2 size-28 rounded-full shadow-md ${commonWrapperClasses}`,
           info: "mt-16 px-6",
           links: "mt-8 px-6 space-y-3 pb-8",
         };
@@ -127,12 +140,14 @@ export default function PublicCardPage() {
       : { backgroundColor: card?.banner?.value || "#2563eb" };
 
   const skinStyle = card?.cardSkin
-    ? {
-        backgroundImage: `url(${card.cardSkin})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }
+    ? card.cardSkin.startsWith("#")
+      ? { backgroundColor: card.cardSkin }
+      : {
+          backgroundImage: `url(${card.cardSkin})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundAttachment: "fixed",
+        }
     : { backgroundColor: "#F3F4F6" };
 
   // --- ACTIONS ---
@@ -227,7 +242,8 @@ END:VCARD`;
             <img
               src={getAvatarUrl()}
               alt={card.fullName}
-              className="h-full w-full object-cover"
+              // Added 'block' to ensure no inline spacing issues
+              className="w-full h-full object-cover block"
             />
           </div>
         </div>

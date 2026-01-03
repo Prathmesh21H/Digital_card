@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { onAuthStateChanged } from "firebase/auth"; // Removed getAuth
-
-// --- KEY FIX: Import the initialized auth instance ---
-import { auth } from "@/lib/firebase";
-
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase"; // Using initialized auth instance
 import { cardAPI, setAuthToken } from "@/lib/api";
 import { CardPreview } from "@/components/CardPreview";
 import {
@@ -22,7 +19,6 @@ import {
 export default function EditCardPage() {
   const { cardId } = useParams();
   const router = useRouter();
-  // Removed: const auth = getAuth(); -> This was causing the error
 
   const [form, setForm] = useState({
     fullName: "",
@@ -30,10 +26,10 @@ export default function EditCardPage() {
     company: "",
     bio: "",
     profileUrl: "",
-    banner: { type: "color", value: "#2563eb" },
+    banner: { type: "color", value: "" },
     cardSkin: null,
-    layout: "minimal",
-    fontStyle: "basic",
+    layout: "",
+    fontStyle: "",
     phone: "",
     email: "",
     website: "",
@@ -51,7 +47,6 @@ export default function EditCardPage() {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // Use the imported 'auth' instance here
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const token = await firebaseUser.getIdToken();
@@ -66,9 +61,7 @@ export default function EditCardPage() {
 
   async function loadCard() {
     try {
-      // NOTE: Ensure getCardById is added to your api.js (see below)
       const data = await cardAPI.getCardById(cardId);
-
       setForm({
         ...data,
         // Ensure nested objects like banner have defaults if missing
@@ -127,7 +120,7 @@ export default function EditCardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/*  */}
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -227,6 +220,7 @@ export default function EditCardPage() {
               )}
 
               {activeTab === "content" ? (
+                // --- CONTENT TAB ---
                 <div className="space-y-8 animate-in fade-in duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
@@ -288,16 +282,198 @@ export default function EditCardPage() {
                   </div>
                 </div>
               ) : (
+                // --- DESIGN TAB ---
                 <div className="space-y-10 animate-in fade-in duration-300">
-                  {/* Design Tab Content (Simplified for brevity, logic remains same) */}
-                  {/*  */}
-                  <div className="text-slate-500 text-sm">
-                    Use the Create Page components here for Layout/Font
-                    selection
+                  {/* 1. Layout Selection */}
+                  <div className="space-y-4">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase ml-1">
+                      Choose Layout
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {["minimal", "modern", "creative"].map((layoutName) => (
+                        <button
+                          key={layoutName}
+                          onClick={() =>
+                            setForm({ ...form, layout: layoutName })
+                          }
+                          className={`relative p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 group ${
+                            form.layout === layoutName
+                              ? "border-blue-600 bg-blue-50/50"
+                              : "border-slate-100 hover:border-blue-200 bg-white"
+                          }`}
+                        >
+                          {/* Visual Representation of Layouts */}
+                          <div className="w-full aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden relative shadow-sm group-hover:shadow-md transition-all">
+                            {layoutName === "minimal" && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-50">
+                                <div className="w-8 h-8 rounded-full bg-slate-400"></div>
+                                <div className="w-16 h-2 bg-slate-300 rounded-full"></div>
+                              </div>
+                            )}
+                            {layoutName === "modern" && (
+                              <div className="absolute inset-0 flex flex-col p-3 gap-2 opacity-50">
+                                <div className="w-full h-8 bg-slate-300 rounded-t-lg mb-[-10px]"></div>
+                                <div className="w-8 h-8 rounded-lg bg-slate-400 border-2 border-white z-10 ml-2"></div>
+                              </div>
+                            )}
+                            {layoutName === "creative" && (
+                              <div className="absolute inset-0 flex items-center justify-center opacity-50">
+                                <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                                  <div className="w-10 h-10 rounded-full border-4 border-white bg-slate-400 shadow-sm"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs font-bold capitalize text-slate-600">
+                            {layoutName}
+                          </span>
+                          {form.layout === layoutName && (
+                            <div className="absolute top-2 right-2 w-3 h-3 bg-blue-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Banner Settings */}
+                  <div className="space-y-4">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase ml-1">
+                      Banner Style
+                    </label>
+                    <div className="p-1 bg-slate-100 rounded-xl inline-flex mb-2">
+                      <button
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            banner: { ...form.banner, type: "color" },
+                          })
+                        }
+                        className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                          form.banner.type === "color"
+                            ? "bg-white shadow-sm text-slate-800"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        Solid Color
+                      </button>
+                      <button
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            banner: { ...form.banner, type: "image" },
+                          })
+                        }
+                        className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                          form.banner.type === "image"
+                            ? "bg-white shadow-sm text-slate-800"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                    </div>
+
+                    {form.banner.type === "color" ? (
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={form.banner.value || "#2563eb"}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              banner: {
+                                type: "color",
+                                value: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-12 h-12 rounded-xl cursor-pointer border-0 p-0 overflow-hidden"
+                        />
+                        <input
+                          type="text"
+                          value={form.banner.value}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              banner: {
+                                type: "color",
+                                value: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="#000000"
+                          className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm font-mono"
+                        />
+                      </div>
+                    ) : (
+                      <Input
+                        label="Banner Image URL"
+                        placeholder="https://..."
+                        value={form.banner.value}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            banner: {
+                              type: "image",
+                              value: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    )}
+                  </div>
+
+                  {/* 3. Typography */}
+                  <div className="space-y-4">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase ml-1">
+                      Typography
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: "basic", label: "Basic", class: "font-sans" },
+                        { id: "serif", label: "Serif", class: "font-serif" },
+                        { id: "mono", label: "Mono", class: "font-mono" },
+                      ].map((font) => (
+                        <button
+                          key={font.id}
+                          onClick={() =>
+                            setForm({ ...form, fontStyle: font.id })
+                          }
+                          className={`py-3 px-4 rounded-xl border transition-all text-sm ${
+                            font.class
+                          } ${
+                            form.fontStyle === font.id
+                              ? "border-blue-600 bg-blue-50 text-blue-700 font-bold"
+                              : "border-slate-200 text-slate-600 hover:border-slate-300"
+                          }`}
+                        >
+                          Aa {font.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 4. Card Skin (Background) */}
+                  <div className="space-y-4">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase ml-1">
+                      Page Background (Skin)
+                    </label>
+                    <Input
+                      label="Background Color or Image URL"
+                      placeholder="#F3F4F6 or https://..."
+                      value={form.cardSkin || ""}
+                      onChange={(e) =>
+                        setForm({ ...form, cardSkin: e.target.value })
+                      }
+                    />
+                    <p className="text-[10px] text-slate-400 ml-1">
+                      Paste a HEX color code (e.g. #ffffff) or a direct image
+                      link.
+                    </p>
                   </div>
 
                   {/* Danger Zone */}
-                  <div className="pt-10 border-t border-slate-100">
+                  <div className="pt-10 border-t border-slate-100 mt-8">
                     <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
                       <Trash2 size={18} /> Danger Zone
                     </div>
