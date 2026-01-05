@@ -68,25 +68,23 @@ export default function PublicCardPage() {
 
   // --- BACKGROUND & TEXT COLOR LOGIC ---
   const getStyles = () => {
-    if (!card) return { skin: {}, textClass: "text-slate-900" };
+    if (!card)
+      return { skinStyle: {}, textClass: "text-slate-900", bgImage: null };
 
     const skinValue = card.cardSkin;
     let skinStyle = { backgroundColor: "#ffffff" }; // Default White
     let textClass = "text-slate-900"; // Default Dark Text
+    let bgImage = null; // Storing image URL separately for performance
 
     if (skinValue) {
       // Check if it looks like an image URL (contains http or /)
       const isImage = skinValue.includes("http") || skinValue.includes("/");
 
       if (isImage) {
-        skinStyle = {
-          backgroundImage: `url(${skinValue})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundAttachment: "fixed",
-        };
-        // For images, we can't easily know brightness, so we might default to dark text
-        // or add a backdrop blur container to ensure readability.
+        // PERFORMANCE FIX: We do not set background-image here.
+        // We set the container to transparent and pass the URL to a fixed div.
+        bgImage = skinValue;
+        skinStyle = { backgroundColor: "transparent" };
       } else {
         // It is a color (Hex, RGB, or Name)
         skinStyle = { backgroundColor: skinValue };
@@ -118,10 +116,10 @@ export default function PublicCardPage() {
           }
         : { backgroundColor: card.banner?.value || "#2563eb" };
 
-    return { skinStyle, bannerStyle, textClass };
+    return { skinStyle, bannerStyle, textClass, bgImage };
   };
 
-  const { skinStyle, bannerStyle, textClass } = getStyles();
+  const { skinStyle, bannerStyle, textClass, bgImage } = getStyles();
 
   const getLayoutClasses = () => {
     if (!card) return {};
@@ -247,11 +245,27 @@ export default function PublicCardPage() {
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-500 ${fontFamily} ${textClass}`}
+      className={`min-h-screen relative transition-colors duration-500 ${fontFamily} ${textClass}`}
       style={skinStyle}
     >
+      {/* --- HIGH PERFORMANCE BACKGROUND IMAGE --- */}
+      {bgImage && (
+        <div
+          className="fixed inset-0 z-0 w-full h-full"
+          style={{
+            backgroundImage: `url(${bgImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
+            // Note: position: fixed handles the scrolling effect without lag
+          }}
+        />
+      )}
+
+      {/* --- CONTENT WRAPPER --- */}
+      {/* relative z-10 ensures content sits ON TOP of the fixed background */}
       <div
-        className={`w-full max-w-xl mx-auto shadow-2xl overflow-hidden min-h-screen flex flex-col relative transition-all duration-300`}
+        className={`relative z-10 w-full max-w-xl mx-auto shadow-2xl overflow-hidden min-h-screen flex flex-col transition-all duration-300`}
       >
         {/* --- CORPORATE LAYOUT --- */}
         {card.layout === "corporate" ? (
@@ -346,13 +360,13 @@ export default function PublicCardPage() {
         ) : card.layout === "glass" ? (
           /* --- GLASS LAYOUT --- */
           <div className={layout.container}>
-            {/* If user selected a color skin, we don't need blur overlay, just the color. 
-                 If user selected an IMAGE skin, we add blur. */}
-            {card.cardSkin &&
-              (card.cardSkin.includes("http") ||
-                card.cardSkin.includes("/")) && (
-                <div className="absolute inset-0 bg-white/20 backdrop-blur-sm z-0"></div>
-              )}
+            {/* For Glass layout with image skin, we add an overlay div.
+                The actual image is now in the fixed div at z-0.
+                This overlay provides the blur effect on top of the image but behind content. 
+            */}
+            {bgImage && (
+              <div className="absolute inset-0 bg-white/20 backdrop-blur-sm z-0"></div>
+            )}
 
             <div className="relative z-10 w-full flex flex-col items-center">
               <div className={layout.avatarWrapper}>
@@ -629,15 +643,6 @@ const GlassLink = ({ icon, value, label, onClick }) => (
       <p className="text-sm font-semibold text-slate-900 truncate">{value}</p>
     </div>
   </div>
-);
-
-const SimpleIconLink = ({ icon, onClick }) => (
-  <button
-    onClick={onClick}
-    className="flex items-center justify-center p-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-sm"
-  >
-    {icon}
-  </button>
 );
 
 const StandardLink = ({ icon, label, value, href, color, bg, border }) => (
