@@ -12,11 +12,22 @@ import {
   Upload,
   Loader2,
   X,
+  Lock,
 } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { cardAPI, setAuthToken } from "@/lib/api";
 import { subscriptionAPI } from "@/lib/api";
 import axios from "axios";
+
+// --- Layout Definitions ---
+const layoutOptions = [
+  { id: "minimal", isPro: false },
+  { id: "modern", isPro: false },
+  { id: "creative", isPro: false },
+  { id: "corporate", isPro: true },
+  { id: "glass", isPro: true },
+  { id: "elegant", isPro: true },
+];
 
 export default function CreateCardPage() {
   const router = useRouter();
@@ -24,8 +35,6 @@ export default function CreateCardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [subscription, setSubscription] = useState(null);
-
-  // New state to store the raw file until we publish
   const [pendingImage, setPendingImage] = useState(null);
 
   useEffect(() => {
@@ -66,6 +75,9 @@ export default function CreateCardPage() {
   const CLOUDINARY_UPLOAD_PRESET = "DigitalCard";
   const CLOUDINARY_CLOUD_NAME = "dmow3iq7c";
 
+  // Determine Pro Status
+  const isPro = subscription?.isUnlimited || subscription?.plan === "pro";
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -74,23 +86,15 @@ export default function CreateCardPage() {
     setForm({ ...form, banner: { type, value } });
   };
 
-  // --- LOCAL PREVIEW ONLY ---
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     if (file.size > 5 * 1024 * 1024) {
       setError("File size exceeds 5MB.");
       return;
     }
-
-    // Store the raw file to upload later
     setPendingImage(file);
-
-    // Create a temporary local URL for the preview
     const localPreviewUrl = URL.createObjectURL(file);
-
-    // Update form with local URL so the user sees it immediately
     setForm((prev) => ({ ...prev, profileUrl: localPreviewUrl }));
     setError("");
   };
@@ -100,7 +104,24 @@ export default function CreateCardPage() {
     setForm((prev) => ({ ...prev, profileUrl: "" }));
   };
 
-  // --- UPLOAD + SAVE ---
+  // --- Handle Click on Layout ---
+  const handleLayoutSelect = (layoutId, layoutIsPro) => {
+    // If it's a Pro layout and user is NOT Pro -> Redirect
+    if (layoutIsPro && !isPro) {
+      if (
+        confirm(
+          "This is a Premium layout. Would you like to upgrade to Pro to use it?"
+        )
+      ) {
+        router.push("/subscibtion"); // <--- Update this to your actual pricing/upgrade route
+      }
+      return;
+    }
+
+    // Otherwise, select the layout
+    setForm({ ...form, layout: layoutId });
+  };
+
   const handleCreate = async () => {
     setLoading(true);
     setError("");
@@ -108,6 +129,14 @@ export default function CreateCardPage() {
     try {
       const user = auth.currentUser;
       if (!user) throw new Error("You must be logged in.");
+
+      // Check Layout Access again (Security fallback)
+      const selectedLayoutObj = layoutOptions.find((l) => l.id === form.layout);
+      if (selectedLayoutObj?.isPro && !isPro) {
+        throw new Error(
+          "You selected a Pro layout. Please upgrade to publish."
+        );
+      }
 
       // Check Subscription Limits
       if (subscription) {
@@ -122,22 +151,17 @@ export default function CreateCardPage() {
       const token = await user.getIdToken();
       setAuthToken(token);
 
-      // --- NEW UPLOAD LOGIC ---
       let finalProfileUrl = form.profileUrl;
 
-      // Only upload if there is a NEW file pending
-      // (If profileUrl is a blob: url, we know it's not uploaded yet)
       if (pendingImage && form.profileUrl.startsWith("blob:")) {
         try {
           const formData = new FormData();
           formData.append("file", pendingImage);
           formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
           const res = await axios.post(
             `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
             formData
           );
-
           finalProfileUrl = res.data.secure_url;
         } catch (uploadErr) {
           console.error("Cloudinary Upload Failed:", uploadErr);
@@ -145,19 +169,15 @@ export default function CreateCardPage() {
         }
       }
 
-      // Prepare final payload with the REAL Cloudinary URL
       const payload = {
         ...form,
         profileUrl: finalProfileUrl,
       };
 
-      // Send to Backend
       await cardAPI.createCard(payload);
-
       router.push("/dashboard");
     } catch (err) {
       console.error("Create Card Error:", err);
-      // Clean up error handling
       const msg =
         err.response?.data?.message || err.message || "Something went wrong.";
       setError(msg);
@@ -166,7 +186,7 @@ export default function CreateCardPage() {
     }
   };
 
-  // --- FONT OPTIONS DATA ---
+  // Font options...
   const fontOptions = [
     { id: "basic", label: "Basic", class: "font-sans" },
     { id: "serif", label: "Serif", class: "font-serif" },
@@ -235,9 +255,7 @@ export default function CreateCardPage() {
 
               {activeTab === "content" ? (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  {/* --- IDENTITY SECTION --- */}
                   <FormSection title="Identity">
-                    {/* Image Upload */}
                     <div className="col-span-1 md:col-span-2 mb-4">
                       <label className="block text-[11px] font-bold text-slate-500 ml-1 uppercase mb-2">
                         Profile Photo
@@ -271,9 +289,6 @@ export default function CreateCardPage() {
                               <span className="text-xs font-semibold">
                                 Click to select image
                               </span>
-                              <span className="text-[10px] text-slate-400 mt-1">
-                                JPG, PNG (Max 5MB)
-                              </span>
                             </div>
                             <input
                               type="file"
@@ -285,7 +300,6 @@ export default function CreateCardPage() {
                         </div>
                       </div>
                     </div>
-
                     <Input
                       label="Full Name"
                       name="fullName"
@@ -306,7 +320,6 @@ export default function CreateCardPage() {
                     />
                   </FormSection>
 
-                  {/* --- CONTACT INFO SECTION --- */}
                   <FormSection title="Contact Info">
                     <Input
                       label="Email"
@@ -328,39 +341,33 @@ export default function CreateCardPage() {
                     />
                   </FormSection>
 
-                  {/* --- SOCIAL MEDIA SECTION --- */}
                   <FormSection title="Social Media">
                     <Input
                       label="LinkedIn URL"
                       name="linkedin"
                       value={form.linkedin}
                       onChange={handleChange}
-                      placeholder="https://linkedin.com/in/..."
                     />
                     <Input
                       label="Twitter (X) URL"
                       name="twitter"
                       value={form.twitter}
                       onChange={handleChange}
-                      placeholder="@username or url"
                     />
                     <Input
                       label="Instagram URL"
                       name="instagram"
                       value={form.instagram}
                       onChange={handleChange}
-                      placeholder="@username or url"
                     />
                     <Input
                       label="Facebook URL"
                       name="facebook"
                       value={form.facebook}
                       onChange={handleChange}
-                      placeholder="https://facebook.com/..."
                     />
                   </FormSection>
 
-                  {/* --- BIO SECTION --- */}
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
                       Bio
@@ -379,79 +386,102 @@ export default function CreateCardPage() {
                 <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500">
                   {/* --- LAYOUT SELECTION --- */}
                   <div>
-                    <SectionHeading
-                      icon={<Type size={18} />}
-                      title="Choose Layout"
-                    />
+                    <div className="flex justify-between items-center mb-4">
+                      <SectionHeading
+                        icon={<Type size={18} />}
+                        title="Choose Layout"
+                      />
+                      {!isPro && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                          Free Plan
+                        </span>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-3 gap-3 mt-4">
-                      {[
-                        "minimal",
-                        "modern",
-                        "creative",
-                        "corporate",
-                        "glass",
-                        "elegant",
-                      ].map((layoutName) => (
-                        <button
-                          key={layoutName}
-                          onClick={() =>
-                            setForm({ ...form, layout: layoutName })
-                          }
-                          className={`relative p-3 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 group ${
-                            form.layout === layoutName
-                              ? "border-blue-600 bg-blue-50/50"
-                              : "border-slate-100 hover:border-blue-200 bg-white"
-                          }`}
-                        >
-                          <div className="w-full aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden relative shadow-sm border border-slate-200/50">
-                            {layoutName === "minimal" && (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-50">
-                                <div className="w-8 h-8 rounded-full bg-slate-400"></div>
-                                <div className="w-12 h-1.5 bg-slate-300 rounded-full"></div>
-                              </div>
-                            )}
-                            {layoutName === "modern" && (
-                              <div className="absolute inset-0 flex flex-col p-2 gap-2 opacity-50">
-                                <div className="w-full h-6 bg-slate-300 rounded-t-lg mb-[-10px]"></div>
-                                <div className="w-8 h-8 rounded-lg bg-slate-400 border-2 border-white z-10 ml-1"></div>
-                              </div>
-                            )}
-                            {layoutName === "creative" && (
-                              <div className="absolute inset-0 flex items-center justify-center opacity-50">
-                                <div className="w-full h-full bg-slate-200 flex items-center justify-center">
-                                  <div className="w-10 h-10 rounded-full border-4 border-white bg-slate-400 shadow-sm"></div>
+                      {layoutOptions.map((layout) => {
+                        const isLocked = layout.isPro && !isPro;
+
+                        return (
+                          <button
+                            key={layout.id}
+                            // Button is always enabled to allow redirect click
+                            onClick={() =>
+                              handleLayoutSelect(layout.id, layout.isPro)
+                            }
+                            className={`relative p-3 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 group cursor-pointer ${
+                              form.layout === layout.id
+                                ? "border-blue-600 bg-blue-50/50"
+                                : "border-slate-100 bg-white"
+                            } ${
+                              // Visual styling for Locked items
+                              isLocked
+                                ? "hover:ring-2 hover:ring-amber-400 hover:border-amber-400"
+                                : "hover:border-blue-200"
+                            }`}
+                          >
+                            {/* LOCKED OVERLAY */}
+                            {isLocked && (
+                              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-50/60 backdrop-blur-[1px] rounded-2xl transition-opacity group-hover:bg-slate-50/40">
+                                <div className="bg-slate-900 text-white p-2 rounded-full shadow-lg group-hover:bg-amber-500 transition-colors">
+                                  <Lock size={16} />
                                 </div>
+                                <span className="text-[10px] font-bold text-slate-900 mt-1 bg-white/80 px-2 rounded-full">
+                                  Upgrade
+                                </span>
                               </div>
                             )}
-                            {layoutName === "corporate" && (
-                              <div className="absolute inset-0 flex opacity-60">
-                                <div className="w-1/3 h-full bg-slate-600 flex flex-col items-center pt-2 gap-1">
-                                  <div className="w-5 h-5 rounded-full bg-white/50"></div>
+
+                            <div className="w-full aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden relative shadow-sm border border-slate-200/50">
+                              {layout.id === "minimal" && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-50">
+                                  <div className="w-8 h-8 rounded-full bg-slate-400"></div>
+                                  <div className="w-12 h-1.5 bg-slate-300 rounded-full"></div>
                                 </div>
-                                <div className="w-2/3 bg-white"></div>
-                              </div>
-                            )}
-                            {layoutName === "glass" && (
-                              <div className="absolute inset-0 flex items-center justify-center opacity-60 bg-gradient-to-br from-blue-200 to-purple-200">
-                                <div className="w-16 h-10 bg-white/50 backdrop-blur-sm rounded border border-white/60"></div>
-                              </div>
-                            )}
-                            {layoutName === "elegant" && (
-                              <div className="absolute inset-0 p-2 flex flex-col items-center justify-center opacity-50">
-                                <div className="w-full h-full border border-slate-500 flex items-center justify-center">
-                                  <div className="w-6 h-6 rotate-45 border border-slate-500"></div>
+                              )}
+                              {layout.id === "modern" && (
+                                <div className="absolute inset-0 flex flex-col p-2 gap-2 opacity-50">
+                                  <div className="w-full h-6 bg-slate-300 rounded-t-lg mb-[-10px]"></div>
+                                  <div className="w-8 h-8 rounded-lg bg-slate-400 border-2 border-white z-10 ml-1"></div>
                                 </div>
-                              </div>
+                              )}
+                              {layout.id === "creative" && (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-50">
+                                  <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                                    <div className="w-10 h-10 rounded-full border-4 border-white bg-slate-400 shadow-sm"></div>
+                                  </div>
+                                </div>
+                              )}
+                              {layout.id === "corporate" && (
+                                <div className="absolute inset-0 flex opacity-60">
+                                  <div className="w-1/3 h-full bg-slate-600 flex flex-col items-center pt-2 gap-1">
+                                    <div className="w-5 h-5 rounded-full bg-white/50"></div>
+                                  </div>
+                                  <div className="w-2/3 bg-white"></div>
+                                </div>
+                              )}
+                              {layout.id === "glass" && (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-60 bg-gradient-to-br from-blue-200 to-purple-200">
+                                  <div className="w-16 h-10 bg-white/50 backdrop-blur-sm rounded border border-white/60"></div>
+                                </div>
+                              )}
+                              {layout.id === "elegant" && (
+                                <div className="absolute inset-0 p-2 flex flex-col items-center justify-center opacity-50">
+                                  <div className="w-full h-full border border-slate-500 flex items-center justify-center">
+                                    <div className="w-6 h-6 rotate-45 border border-slate-500"></div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-xs font-bold capitalize text-slate-600">
+                              {layout.id}
+                            </span>
+                            {form.layout === layout.id && (
+                              <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
                             )}
-                          </div>
-                          <span className="text-xs font-bold capitalize text-slate-600">
-                            {layoutName}
-                          </span>
-                          {form.layout === layoutName && (
-                            <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
-                          )}
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 mt-6">
