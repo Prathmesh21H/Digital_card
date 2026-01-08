@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react"; // Added useCallback
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import {
@@ -17,10 +17,9 @@ import {
   Wallet,
 } from "lucide-react";
 
-// 1. ADD THESE IMPORTS
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase"; // Ensure this path is correct based on your project
-import AuthModal from "@/components/AuthModal"; // Import your existing Modal
+import { auth } from "@/lib/firebase";
+import AuthModal from "@/components/AuthModal";
 
 const API_BASE_URL =
   (typeof process !== "undefined" &&
@@ -39,12 +38,12 @@ export default function PublicCardPage() {
   const [error, setError] = useState(false);
   const [savingWallet, setSavingWallet] = useState(false);
 
-  // 2. NEW STATE FOR AUTH FLOW
+  // Auth & Save Logic
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authView, setAuthView] = useState("signup"); // Default to signup for new users
-  const [pendingSave, setPendingSave] = useState(false); // The magic flag
+  const [authView, setAuthView] = useState("signup");
+  const [pendingSave, setPendingSave] = useState(false);
 
-  // --- EXISTING FETCH LOGIC (Unchanged) ---
+  // --- FETCH CARD ---
   useEffect(() => {
     if (!cardLinkString) return;
     const fetchCard = async () => {
@@ -72,14 +71,11 @@ export default function PublicCardPage() {
     fetchCard();
   }, [cardLinkString]);
 
-  // 3. CORE LOGIC: THE SAVE FUNCTION
-  // We separate the logic so it can be called from button OR auth listener
+  // --- SAVE TO WALLET LOGIC ---
   const executeWalletSave = useCallback(
     async (userToken) => {
       try {
         setSavingWallet(true);
-
-        // Use token passed in, or get from storage
         const token = userToken || localStorage.getItem("token");
 
         await axios.post(
@@ -99,60 +95,44 @@ export default function PublicCardPage() {
         alert(msg);
       } finally {
         setSavingWallet(false);
-        setPendingSave(false); // Reset the flag
+        setPendingSave(false);
       }
     },
     [cardLinkString]
   );
 
-  // 4. NEW: AUTH STATE LISTENER
-  // This watches for when the user logs in via the modal
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && pendingSave) {
-        // User just logged in AND had a pending save action
-        console.log("User logged in, executing pending save...");
-
-        // Close modal
         setIsAuthOpen(false);
-
-        // Get fresh token
         const token = await user.getIdToken();
-        localStorage.setItem("token", token); // Ensure localstorage is synced
-
-        // Trigger the save
+        localStorage.setItem("token", token);
         executeWalletSave(token);
       }
     });
-
     return () => unsubscribe();
   }, [pendingSave, executeWalletSave]);
 
   const handleSaveToWallet = async () => {
     const user = auth.currentUser;
-
     if (user) {
       try {
         const freshToken = await user.getIdToken(true);
-
         localStorage.setItem("token", freshToken);
-
         executeWalletSave(freshToken);
       } catch (err) {
-        console.error("Error refreshing token:", err);
         setPendingSave(true);
         setAuthView("login");
         setIsAuthOpen(true);
       }
     } else {
-      // 2. If NOT logged in, show the modal
       setPendingSave(true);
       setAuthView("signup");
       setIsAuthOpen(true);
     }
   };
 
-  // --- ACTIONS (Contact Save Unchanged) ---
+  // --- SAVE CONTACT (VCF) ---
   const handleSaveContact = () => {
     const vCardData = `BEGIN:VCARD\nVERSION:3.0\nFN:${card.fullName}\nORG:${
       card.company || ""
@@ -171,7 +151,7 @@ export default function PublicCardPage() {
     document.body.removeChild(link);
   };
 
-  // --- HELPERS ---
+  // --- STYLES ---
   const getAvatarUrl = () => {
     if (card?.profileUrl?.trim()) return card.profileUrl;
     return `https://api.dicebear.com/7.x/initials/svg?seed=${
@@ -179,43 +159,31 @@ export default function PublicCardPage() {
     }`;
   };
 
-  // --- BACKGROUND & TEXT COLOR LOGIC ---
   const getStyles = () => {
     if (!card) return { skin: {}, textClass: "text-slate-900" };
 
     const skinValue = card.cardSkin;
-    let skinStyle = { backgroundColor: "#ffffff" }; // Default White
-    let textClass = "text-slate-900"; // Default Dark Text
+    let skinStyle = { backgroundColor: "#ffffff" };
+    let textClass = "text-slate-900";
 
     if (skinValue) {
-      // Check if it looks like an image URL (contains http or /)
       const isImage = skinValue.includes("http") || skinValue.includes("/");
-
       if (isImage) {
         skinStyle = {
           backgroundImage: `url(${skinValue})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
-          backgroundAttachment: "fixed",
+          backgroundAttachment: "scroll", // Changed from 'fixed' to 'scroll' for better mobile feel inside container
         };
-        // For images, we can't easily know brightness, so we might default to dark text
-        // or add a backdrop blur container to ensure readability.
       } else {
-        // It is a color (Hex, RGB, or Name)
         skinStyle = { backgroundColor: skinValue };
-
-        // Simple brightness check for Hex codes to set text color
         if (skinValue.startsWith("#")) {
           const hex = skinValue.replace("#", "");
           const r = parseInt(hex.substring(0, 2), 16);
           const g = parseInt(hex.substring(2, 4), 16);
           const b = parseInt(hex.substring(4, 6), 16);
           const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-
-          // If brightness is low (dark background), use white text
-          if (brightness < 128) {
-            textClass = "text-white";
-          }
+          if (brightness < 128) textClass = "text-white";
         } else if (skinValue.toLowerCase() === "black") {
           textClass = "text-white";
         }
@@ -264,7 +232,6 @@ export default function PublicCardPage() {
         };
       case "elegant":
         return {
-          // Pure transparent container
           container: `text-center min-h-screen border-[12px] border-double ${
             textClass.includes("white") ? "border-white/50" : "border-slate-800"
           } m-0 md:m-6 flex flex-col`,
@@ -339,18 +306,18 @@ export default function PublicCardPage() {
 
   const layout = getLayoutClasses();
   const fontFamily = getFontFamily();
-
-  // Button Color helper
   const primaryColor =
     card.banner?.type === "color" ? card.banner.value : "#2563EB";
 
   return (
+    // OUTER CONTAINER: Neutral Background
     <div
-      className={`min-h-screen transition-colors duration-500 ${fontFamily} ${textClass}`}
-      style={skinStyle}
+      className={`min-h-screen w-full flex justify-center bg-gray-100 ${fontFamily}`}
     >
+      {/* INNER CONTAINER: Card Skin Applied Here */}
       <div
-        className={`w-full max-w-xl mx-auto shadow-2xl overflow-hidden min-h-screen flex flex-col relative transition-all duration-300`}
+        className={`w-full max-w-xl mx-auto shadow-2xl overflow-hidden min-h-screen flex flex-col relative transition-all duration-300 ${textClass}`}
+        style={skinStyle}
       >
         {/* --- CORPORATE LAYOUT --- */}
         {card.layout === "corporate" ? (
@@ -362,16 +329,6 @@ export default function PublicCardPage() {
                   alt="Avatar"
                   className="h-full w-full object-cover"
                 />
-              </div>
-              <div className="px-6 text-center text-white/90">
-                <p className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">
-                  Scan
-                </p>
-                <div className="size-24 bg-white/10 p-2 mx-auto rounded-xl border border-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <div className="size-full bg-white flex items-center justify-center text-[10px] text-slate-900 font-bold">
-                    QR CODE
-                  </div>
-                </div>
               </div>
             </div>
             <div className={layout.mainContent}>
@@ -498,6 +455,20 @@ export default function PublicCardPage() {
                         card.website.startsWith("http")
                           ? card.website
                           : `https://${card.website}`
+                      )
+                    }
+                  />
+                )}
+                {card.linkedin && (
+                  <GlassLink
+                    icon={<Linkedin size={20} />}
+                    value="Connect on LinkedIn"
+                    label="LinkedIn"
+                    onClick={() =>
+                      window.open(
+                        card.linkedin.startsWith("http")
+                          ? card.linkedin
+                          : `https://${card.linkedin}`
                       )
                     }
                   />
@@ -669,11 +640,12 @@ export default function PublicCardPage() {
           </div>
         )}
       </div>
+
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => {
           setIsAuthOpen(false);
-          setPendingSave(false); // Cancel pending save if they close manually
+          setPendingSave(false);
         }}
         initialView={authView}
       />
@@ -772,15 +744,6 @@ const GlassLink = ({ icon, value, label, onClick }) => (
   </div>
 );
 
-const SimpleIconLink = ({ icon, onClick }) => (
-  <button
-    onClick={onClick}
-    className="flex items-center justify-center p-4 border border-slate-200 rounded-2xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-sm"
-  >
-    {icon}
-  </button>
-);
-
 const StandardLink = ({ icon, label, value, href, color, bg, border }) => (
   <a
     href={href}
@@ -808,10 +771,9 @@ const SocialsRow = ({ card, className = "" }) => (
       <SocialIcon
         href={card.linkedin}
         icon={<Linkedin size={20} />}
-        color="bg-[#0077B5]"
+        color="bg-[#0077b5]"
       />
     )}
-
     {card.twitter && (
       <SocialIcon
         href={card.twitter}
@@ -819,7 +781,6 @@ const SocialsRow = ({ card, className = "" }) => (
         color="bg-[#1DA1F2]"
       />
     )}
-
     {card.instagram && (
       <SocialIcon
         href={card.instagram}
@@ -827,7 +788,6 @@ const SocialsRow = ({ card, className = "" }) => (
         color="bg-[#E1306C]"
       />
     )}
-
     {card.facebook && (
       <SocialIcon
         href={card.facebook}
@@ -837,7 +797,6 @@ const SocialsRow = ({ card, className = "" }) => (
     )}
   </div>
 );
-
 
 const SocialIcon = ({ href, icon, color }) => {
   const link = href.startsWith("http") ? href : `https://${href}`;
