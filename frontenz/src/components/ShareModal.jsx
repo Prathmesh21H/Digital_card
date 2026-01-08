@@ -1,15 +1,16 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
-import { X, Phone, Mail, Download, Copy, Check } from "lucide-react";
+import { X, Phone, Mail, Download, Copy, Check, Loader2 } from "lucide-react";
 
 const ShareModal = ({ card, onClose }) => {
   const [copied, setCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (card) {
-      // Use custom link if available, otherwise use ID
-      const slug = card.cardLink || card.cardId;
-      // Construct full URL dynamically based on current domain
+      const slug = card.cardLink || card.cardId || card._id;
       const url = `${window.location.origin}/p/${slug}`;
       setShareUrl(url);
     }
@@ -23,32 +24,108 @@ const ShareModal = ({ card, onClose }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownloadQR = async () => {
-    try {
-      const response = await fetch(
-        `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(
-          shareUrl
-        )}`
-      );
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+  const handleDownloadImage = () => {
+    setIsGenerating(true);
+
+    // 1. Setup Canvas
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // High resolution for crisp text (600px wide)
+    const width = 600;
+    const height = 750;
+    canvas.width = width;
+    canvas.height = height;
+
+    // 2. Draw White Background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+
+    // 3. Prepare QR Image
+    const qrSize = 400;
+    const qrX = (width - qrSize) / 2; // Center horizontally
+    const qrY = 50; // Top padding
+
+    const qrImg = new Image();
+    // Use the API URL
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(
+      shareUrl
+    )}`;
+    qrImg.crossOrigin = "Anonymous"; // Essential for saving canvas to file
+
+    qrImg.onload = () => {
+      // -- Optional: Draw a subtle shadow/border box for the QR code like the screenshot --
+      // Save context
+      ctx.save();
+      // Draw shadow
+      ctx.shadowColor = "rgba(0, 0, 0, 0.1)";
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 10;
+      // Draw rounded rectangle background for QR
+      ctx.fillStyle = "#ffffff";
+      roundRect(ctx, qrX - 20, qrY - 20, qrSize + 40, qrSize + 40, 20);
+      ctx.fill();
+      ctx.restore();
+
+      // 4. Draw QR Code
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+      // 5. Draw Name
+      ctx.font = "bold 32px sans-serif"; // Tailwind 'font-sans' style
+      ctx.fillStyle = "#0f172a"; // slate-900
+      ctx.textAlign = "center";
+      // Name position: below QR code
+      const name = card.fullName || "Digital Card";
+      ctx.fillText(name, width / 2, qrY + qrSize + 80);
+
+      // 6. Draw Subtitle
+      ctx.font = "20px sans-serif";
+      ctx.fillStyle = "#64748b"; // slate-500
+      ctx.fillText("Scan to view card", width / 2, qrY + qrSize + 120);
+
+      // 7. Convert to File and Download
+      const dataUrl = canvas.toDataURL("image/png");
       const link = document.createElement("a");
-      link.href = url;
-      link.download = `qr-${card.fullName}.png`;
+
+      // Sanitize filename
+      const safeName = (card.fullName || "card")
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-zA-Z0-9-_]/g, "");
+
+      link.href = dataUrl;
+      link.download = `${safeName}-QR.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (error) {
-      console.error("Error downloading QR:", error);
-      alert(
-        "Could not download image. Try right-clicking the QR code to save it."
-      );
-    }
+
+      setIsGenerating(false);
+    };
+
+    qrImg.onerror = () => {
+      console.error("Failed to load QR code image");
+      alert("Failed to generate image. Please try again.");
+      setIsGenerating(false);
+    };
+  };
+
+  // Helper function to draw rounded rectangles on Canvas
+  const roundRect = (ctx, x, y, w, h, r) => {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    return ctx;
   };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop with semi-transparent black */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -67,24 +144,18 @@ const ShareModal = ({ card, onClose }) => {
         </div>
 
         <div className="p-8 flex flex-col items-center">
-          {/* QR Code Section */}
-          <div className="bg-white p-4 rounded-xl border-2 border-gray-100 shadow-sm mb-6 relative group">
+          {/* QR Code Preview Display (UI Only) */}
+          <div className="bg-white p-6 rounded-3xl border-2 border-gray-100 shadow-sm mb-6 relative group">
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
                 shareUrl
               )}`}
               alt="QR Code"
               className="w-48 h-48 object-contain"
             />
-            <div
-              onClick={handleDownloadQR}
-              className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white cursor-pointer rounded-lg"
-            >
-              <Download size={24} />
-            </div>
           </div>
 
-          <h4 className="font-bold text-xl text-gray-900 mb-1">
+          <h4 className="font-bold text-xl text-gray-900 mb-1 text-center">
             {card.fullName}
           </h4>
           <p className="text-gray-500 text-sm mb-6 text-center max-w-[80%]">
@@ -134,13 +205,20 @@ const ShareModal = ({ card, onClose }) => {
             </a>
 
             <button
-              onClick={handleDownloadQR}
-              className="flex flex-col items-center gap-2 group cursor-pointer"
+              onClick={handleDownloadImage}
+              disabled={isGenerating}
+              className="flex flex-col items-center gap-2 group cursor-pointer disabled:opacity-50"
             >
-              <div className="w-12 h-12 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors shadow-sm">
-                <Download size={20} />
+              <div className="w-12 h-12 bg-gray-900 text-white rounded-full flex items-center justify-center group-hover:bg-black transition-colors shadow-sm">
+                {isGenerating ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <Download size={20} />
+                )}
               </div>
-              <span className="text-xs font-medium text-gray-600">Save QR</span>
+              <span className="text-xs font-medium text-gray-600">
+                {isGenerating ? "Saving..." : "Save Image"}
+              </span>
             </button>
           </div>
         </div>
