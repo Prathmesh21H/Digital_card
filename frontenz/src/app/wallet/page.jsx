@@ -1,5 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+
 import {
   Wallet,
   ExternalLink,
@@ -16,29 +19,43 @@ const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
     process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:5000/api";
+  "http://localhost:5000/";
 
 export default function WalletPage() {
+  const router = useRouter();
+
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+  
+    const token = localStorage.getItem("token");
+    if (!token) return;
+  
     fetchWallet();
   }, []);
-
+  
   const fetchWallet = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Please log in to view your wallet.");
   
-      const listUrl = `${API_BASE_URL}/scanned/me`;
+      const token =
+        typeof window !== "undefined"
+          ? localStorage.getItem("token")
+          : null;
+  
+      if (!token) return;
+  
+      const listUrl = `${API_BASE_URL}api/scanned/me`;
       console.log("Fetching wallet from:", listUrl);
   
       const listResponse = await fetch(listUrl, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
   
       if (!listResponse.ok) throw new Error("Failed to fetch wallet");
@@ -48,25 +65,41 @@ export default function WalletPage() {
   
       const results = await Promise.all(
         scannedItems.map(async (item) => {
-          const detailUrl = `${API_BASE_URL}/scanned/me?cardLink=${encodeURIComponent(item.cardLink)}`;
-          const detailRes = await fetch(detailUrl, { headers: { Authorization: `Bearer ${token}` } });
+          const detailUrl = `${API_BASE_URL}api/scanned/me?cardLink=${encodeURIComponent(
+            item.cardLink
+          )}`;
+  
+          const detailRes = await fetch(detailUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+  
           if (!detailRes.ok) return null;
+  
           const detailData = await detailRes.json();
           if (!detailData.card) return null;
-          return { ...detailData.card, scannedAt: item.scannedAt, cardLink: item.cardLink };
+  
+          return {
+            ...detailData.card,
+            scannedAt: item.scannedAt,
+            cardLink: item.cardLink,
+          };
         })
       );
   
-      const validCards = results.filter(Boolean).sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+      const validCards = results
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+  
       setCards(validCards);
       setError(null);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Could not load your wallet. Please try again.");
+      setError("Could not load your wallet. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+  
   
   // --- HELPERS ---
 
@@ -134,18 +167,26 @@ export default function WalletPage() {
   );
 
   return (
+    
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10 px-4 py-3 shadow-sm">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold text-xl">
-            <Wallet className="w-6 h-6" />
-            <span>CardWallet</span>
-          </div>
-        </div>
-      </nav>
+       <header className="bg-white shadow-sm h-16 fixed w-full top-0 z-30 flex items-center justify-between px-4 lg:px-6">
+       <div
+  onClick={() => router.push("/dashboard")}
+  className="text-xl lg:text-2xl font-bold text-blue-600 tracking-tight cursor-pointer"
+>
+  Nexcard
+</div>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+  <div className="relative">
+    <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center">
+      <User className="w-4 h-4 lg:w-5 lg:h-5 text-gray-500" />
+    </div>
+    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 lg:w-3 lg:h-3 bg-green-500 border-2 border-white rounded-full"></span>
+  </div>
+</header>
+
+<main className="max-w-6xl mx-auto px-4 pt-24 pb-8">
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>

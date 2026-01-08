@@ -26,7 +26,7 @@ const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
     process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:5000/api";
+  "http://localhost:5000/";
 
 export default function PublicCardPage() {
   const params = useParams();
@@ -51,7 +51,7 @@ export default function PublicCardPage() {
       try {
         setLoading(true);
         const response = await axios.get(
-          `${API_BASE_URL}/cards/public/${cardLinkString}`
+          `${API_BASE_URL}api/cards/public/${cardLinkString}`
         );
         const cardData = response.data.card || response.data;
         if (!cardData) throw new Error("No data found");
@@ -83,7 +83,7 @@ export default function PublicCardPage() {
         const token = userToken || localStorage.getItem("token");
 
         await axios.post(
-          `${API_BASE_URL}/scanned`,
+          `${API_BASE_URL}api/scanned`,
           { cardLink: cardLinkString },
           {
             headers: {
