@@ -16,7 +16,7 @@ const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
     process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:5000";
+  "http://localhost:5000/api";
 
 export default function WalletPage() {
   const [cards, setCards] = useState([]);
@@ -32,81 +32,42 @@ export default function WalletPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-
-      if (!token) {
-        // You might want to redirect to login here instead
-        setError("Please log in to view your wallet.");
-        setLoading(false);
-        return;
-      }
-
-      // 1. Fetch the list of scanned IDs
-      const listResponse = await fetch(`${API_BASE_URL}/api/scanned/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      if (!token) throw new Error("Please log in to view your wallet.");
+  
+      const listUrl = `${API_BASE_URL}/scanned/me`;
+      console.log("Fetching wallet from:", listUrl);
+  
+      const listResponse = await fetch(listUrl, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
+  
       if (!listResponse.ok) throw new Error("Failed to fetch wallet");
-
+  
       const listData = await listResponse.json();
-      // Expecting: { scannedCards: [{ cardLink: "...", scannedAt: ... }] }
       const scannedItems = listData.scannedCards || [];
-
-      // 2. Hydrate the list (Fetch full details for each card)
-      const hydrationPromises = scannedItems.map(async (item) => {
-        try {
-          // We use the same endpoint with ?cardLink= to get public details
-          const detailUrl = `${API_BASE_URL}/api/scanned/me?cardLink=${encodeURIComponent(
-            item.cardLink
-          )}`;
-
-          const detailRes = await fetch(detailUrl, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
+  
+      const results = await Promise.all(
+        scannedItems.map(async (item) => {
+          const detailUrl = `${API_BASE_URL}/scanned/me?cardLink=${encodeURIComponent(item.cardLink)}`;
+          const detailRes = await fetch(detailUrl, { headers: { Authorization: `Bearer ${token}` } });
           if (!detailRes.ok) return null;
-
           const detailData = await detailRes.json();
-          // The controller returns { card: {...}, message: "..." }
-
           if (!detailData.card) return null;
-
-          // Merge the "scannedAt" from the list with the "card details"
-          return {
-            ...detailData.card, // spread fullName, designation, etc.
-            scannedAt: item.scannedAt, // keep the scan time
-            // Ensure cardLink is preserved if not in detail
-            cardLink: item.cardLink,
-          };
-        } catch (err) {
-          console.error(`Failed to load card ${item.cardLink}`, err);
-          return null;
-        }
-      });
-
-      const results = await Promise.all(hydrationPromises);
-
-      // Filter nulls and sort by newest scan
-      const validCards = results
-        .filter((c) => c !== null)
-        .sort((a, b) => {
-          const dateA = getDateString(a.scannedAt);
-          const dateB = getDateString(b.scannedAt);
-          return dateB - dateA;
-        });
-
+          return { ...detailData.card, scannedAt: item.scannedAt, cardLink: item.cardLink };
+        })
+      );
+  
+      const validCards = results.filter(Boolean).sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
       setCards(validCards);
       setError(null);
     } catch (err) {
       console.error(err);
-      setError("Could not load your wallet. Please try again.");
+      setError(err.message || "Could not load your wallet. Please try again.");
     } finally {
       setLoading(false);
     }
   };
-
+  
   // --- HELPERS ---
 
   const getDateString = (timestamp) => {
