@@ -16,6 +16,8 @@ import {
   Loader2,
   Wallet,
 } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
+
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -25,7 +27,7 @@ const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
     process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:5000/api";
+  "http://localhost:5000/";
 
 export default function PublicCardPage() {
   const params = useParams();
@@ -50,7 +52,7 @@ export default function PublicCardPage() {
       try {
         setLoading(true);
         const response = await axios.get(
-          `${API_BASE_URL}/cards/public/${cardLinkString}`
+          `${API_BASE_URL}api/cards/public/${cardLinkString}`
         );
         const cardData = response.data.card || response.data;
         if (!cardData) throw new Error("No data found");
@@ -79,7 +81,7 @@ export default function PublicCardPage() {
         const token = userToken || localStorage.getItem("token");
 
         await axios.post(
-          `${API_BASE_URL}/scanned`,
+          `${API_BASE_URL}api/scanned`,
           { cardLink: cardLinkString },
           {
             headers: {
@@ -398,6 +400,7 @@ export default function PublicCardPage() {
                 card={card}
                 className="justify-center md:justify-start mt-8"
               />
+              <ShareQRCode textClass={textClass} />
             </div>
           </div>
         ) : card.layout === "glass" ? (
@@ -487,6 +490,8 @@ export default function PublicCardPage() {
                   />
                 </div>
                 <SocialsRow card={card} className="justify-center mt-6" />
+                <ShareQRCode textClass={textClass} />
+
               </div>
             </div>
           </div>
@@ -636,6 +641,7 @@ export default function PublicCardPage() {
                 />
               </div>
               <SocialsRow card={card} className="justify-center mt-10 pb-8" />
+              <ShareQRCode textClass={textClass} />
             </div>
           </div>
         )}
@@ -809,5 +815,35 @@ const SocialIcon = ({ href, icon, color }) => {
     >
       {icon}
     </a>
+  );
+};
+const ShareQRCode = ({ textClass }) => {
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    setUrl(window.location.href);
+  }, []);
+
+  if (!url) return null;
+
+  const isDark = textClass === "text-white";
+
+  return (
+    <div className="flex flex-col items-center mt-10 pb-6 opacity-90">
+      <QRCodeCanvas
+        value={url}
+        size={90}
+        bgColor="transparent"
+        fgColor={isDark ? "#ffffff" : "#000000"}
+        level="M"
+      />
+      <p
+        className={`text-xs mt-2 ${
+          isDark ? "text-white/70" : "text-slate-500"
+        }`}
+      >
+        Scan to open card
+      </p>
+    </div>
   );
 };
