@@ -157,13 +157,8 @@ export const getCardByLink = async (req, res) => {
     if (!card) {
       return res.status(404).json({ message: "Card not found" });
     }
-
-    // 2. Increment the view count
-    // We pass the cardId found in the fetch step
     await CardModel.incrementViews(card.cardId);
 
-    // Optional: Update the response object so the user sees the new count immediately
-    // (fetch returns the old count, so we add 1 locally for display)
     card.views = (card.views || 0) + 1;
 
     res.json({ card });
