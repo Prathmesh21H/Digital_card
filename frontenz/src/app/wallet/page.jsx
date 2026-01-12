@@ -59,7 +59,6 @@ export default function WalletPage() {
 
       const listData = await listResponse.json();
       const scannedItems = listData.scannedCards || [];
-
       const results = await Promise.all(
         scannedItems.map(async (item) => {
           const detailUrl = `${API_BASE_URL}api/scanned/me?cardLink=${encodeURIComponent(
@@ -74,7 +73,6 @@ export default function WalletPage() {
 
           const detailData = await detailRes.json();
           if (!detailData.card) return null;
-
           return {
             ...detailData.card,
             scannedAt: item.scannedAt,
