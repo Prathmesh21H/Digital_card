@@ -202,12 +202,66 @@ export default function PublicCardPage() {
                 {card.email && <StandardLink icon={<Mail size={18} />} label="Email" value={card.email} href={`mailto:${card.email}`} color="text-rose-600" bg="bg-rose-50" />}
                 {card.website && <StandardLink icon={<Globe size={18} />} label="Website" value={card.website} href={card.website.startsWith('http') ? card.website : `https://${card.website}`} color="text-indigo-600" bg="bg-indigo-50" />}
               </div>
+              <div className={layout.links}>
+                {card.phone && (
+                  <GlassLink
+                    icon={<Phone size={20} />}
+                    value={card.phone}
+                    label="Phone"
+                    onClick={() => window.open(`tel:${card.phone}`)}
+                  />
+                )}
+                {card.email && (
+                  <GlassLink
+                    icon={<Mail size={20} />}
+                    value={card.email}
+                    label="Email"
+                    onClick={() => window.open(`mailto:${card.email}`)}
+                  />
+                )}
+                {card.website && (
+                  <GlassLink
+                    icon={<Globe size={20} />}
+                    value={card.website}
+                    label="Website"
+                    onClick={() =>
+                      window.open(
+                        card.website.startsWith("http")
+                          ? card.website
+                          : `https://${card.website}`
+                      )
+                    }
+                  />
+                )}
+                {card.linkedin && (
+                  <GlassLink
+                    icon={<Linkedin size={20} />}
+                    value="Connect on LinkedIn"
+                    label="LinkedIn"
+                    onClick={() =>
+                      window.open(
+                        card.linkedin.startsWith("http")
+                          ? card.linkedin
+                          : `https://${card.linkedin}`
+                      )
+                    }
+                  />
+                )}
 
-              <SocialsRow card={card} className="justify-center" />
-
-              {/* PRIMARY ACTION: WALLET */}
-              <div className="pt-2">
-                <WalletBtn onClick={handleSaveToWallet} loading={savingWallet} themeColor={bannerStyle.backgroundColor} />
+                <div className="pt-6 px-4 space-y-3">
+                  <SaveBtn
+                    onClick={handleSaveContact}
+                    color="#334155"
+                    glass={true}
+                  />
+                  <WalletBtn
+                    onClick={handleSaveToWallet}
+                    loading={savingWallet}
+                    glass={true}
+                  />
+                </div>
+                <SocialsRow card={card} className="justify-center mt-6" />
+                <ShareQRCode textClass={textClass} />
               </div>
 
               {/* ADMIN ACTIONS: COMPACT & ATTRACTIVE */}
@@ -297,12 +351,41 @@ const SocialsRow = ({ card, className = "" }) => {
   ];
   if (!platforms.some(p => card[p.key])) return null;
   return (
-    <div className={`flex gap-4 pt-2 ${className}`}>
-      {platforms.map(p => card[p.key] && (
-        <a key={p.key} onClick={(e) => e.stopPropagation()} href={card[p.key].startsWith('http') ? card[p.key] : `https://${card[p.key]}`} target="_blank" rel="noreferrer" className={`${p.color} text-white size-11 rounded-2xl flex items-center justify-center shadow-lg hover:scale-110 active:scale-90 transition-transform`}>
-          {p.icon}
-        </a>
-      ))}
+    <div className="flex flex-col items-center mt-10 pb-6">
+      {/* Perspective Container */}
+      <div className="group perspective-1000">
+        <div
+          className={`
+            p-3 rounded-xl transition-all duration-300 ease-out
+            /* 1. Lift Effect: Moves up and scales slightly */
+            group-hover:-translate-y-2 group-hover:scale-105
+            /* 2. 3D Rotation: Slight tilt for depth */
+            group-hover:rotate-x-12
+            /* 3. Shadow & Background */
+            ${
+              isDark
+                ? "bg-white/10 shadow-lg group-hover:shadow-white/20 group-hover:bg-white/15"
+                : "bg-white shadow-md group-hover:shadow-xl group-hover:shadow-slate-200"
+            }
+          `}
+        >
+          <QRCodeCanvas
+            value={url}
+            size={90}
+            bgColor="transparent"
+            fgColor={isDark ? "#ffffff" : "#000000"}
+            level="M"
+          />
+        </div>
+      </div>
+
+      <p
+        className={`text-xs mt-4 transition-opacity duration-300 ${
+          isDark ? "text-white/70" : "text-slate-500"
+        } group-hover:opacity-100`}
+      >
+        Scan to open card
+      </p>
     </div>
   );
 };

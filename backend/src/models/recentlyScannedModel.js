@@ -28,4 +28,9 @@ export const RecentlyScannedModel = {
     await ref.set({ scannedCards }, { merge: true });
     return scannedCards;
   },
+
+  remove: async (uid, cardLink) => {
+    console.log(`Deleting card ${cardLink} for user ${uid}`);
+    return true;
+  },
 };

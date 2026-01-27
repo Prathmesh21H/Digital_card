@@ -3,6 +3,7 @@ import requireAuth from "../middleware/requireAuth.js";
 import {
   saveScannedCard,
   getRecentlyScannedCards,
+  deleteScannedCard,
 } from "../controllers/recentlyScannedController.js";
 
 const router = express.Router();
@@ -12,5 +13,7 @@ router.post("/", requireAuth, saveScannedCard);
 
 // Get my scanned cards
 router.get("/me", requireAuth, getRecentlyScannedCards);
+
+router.delete("/me/:cardLink", requireAuth, deleteScannedCard);
 
 export default router;

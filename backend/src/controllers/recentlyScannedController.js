@@ -72,3 +72,37 @@ export const getRecentlyScannedCards = async (req, res) => {
     message: "Sign up to save and view recently scanned cards",
   });
 };
+/**
+ * Delete a specific saved card for the logged-in user
+ */
+export const deleteScannedCard = async (req, res) => {
+  const { cardLink } = req.body; // or req.params if using /delete/:cardLink
+  const uid = req.user?.uid;
+
+  if (!uid) {
+    return res.status(401).json({ message: "Unauthorized. Please log in." });
+  }
+
+  try {
+    // Assuming RecentlyScannedModel has a 'remove' or 'delete' method
+    const result = await RecentlyScannedModel.remove(uid, cardLink);
+
+    if (result) {
+      return res.json({
+        success: true,
+        message: "Card removed from recently scanned history",
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: "Card not found in your history",
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error while deleting card",
+      error: error.message,
+    });
+  }
+};

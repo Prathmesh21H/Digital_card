@@ -29,8 +29,6 @@ export const createCard = async (req, res) => {
       });
     }
 
-    
-    
     // const error = validateCardFeatures(subscription, cardData);
     // if (error) {
     //   return res.status(403).json({ message: error });
@@ -153,10 +151,15 @@ export const getCardByLink = async (req, res) => {
       return res.status(404).json({ message: "No link provided" });
     }
 
+    // 1. Fetch the card
     const card = await CardModel.findByLink(cardLink);
+
     if (!card) {
       return res.status(404).json({ message: "Card not found" });
     }
+    await CardModel.incrementViews(card.cardId);
+
+    card.views = (card.views || 0) + 1;
 
     res.json({ card });
   } catch (err) {

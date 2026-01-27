@@ -16,6 +16,7 @@ export const CardModel = {
         cardId,
         ownerUid: uid,
         cardLink,
+        views: 0,
         ...data,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -69,5 +70,24 @@ export const CardModel = {
 
     await ref.delete();
     return true;
+  },
+
+  async incrementViews(cardId) {
+    const ref = db.collection(COLLECTION).doc(cardId);
+
+    // This works even if the 'views' field doesn't exist yet (it starts at 0)
+    await ref.update({
+      views: admin.firestore.FieldValue.increment(1),
+    });
+  },
+
+  async findByLink(cardLink) {
+    const snap = await db
+      .collection(COLLECTION)
+      .where("cardLink", "==", cardLink)
+      .limit(1) // Changed from 5 to 1 for efficiency
+      .get();
+
+    return snap.empty ? null : snap.docs[0].data();
   },
 };
