@@ -215,43 +215,59 @@ export default function CreateCardPage() {
   // ---------------- CREATE CARD ----------------
   const handleCreate = async () => {
     if (loading) return;
+  
     setLoading(true);
     setError("");
-
+  
     if (!validateForm()) {
       setLoading(false);
       return;
     }
-
+  
     try {
       const user = auth.currentUser;
       if (!user) {
-        setError("You must be logged in to create a card.");
-        setLoading(false);
-        return;
+        throw new Error("You must be logged in to create a card.");
       }
-
-      // Check Permissions
-      const selectedLayoutObj = layoutOptions.find((l) => l.id === form.layout);
+  
+      // Pro layout check
+      const selectedLayoutObj = layoutOptions.find(
+        (l) => l.id === form.layout
+      );
+  
       if (selectedLayoutObj?.isPro && !isPro) {
-        setError("You selected a Pro layout. Please upgrade to publish.");
-        setLoading(false);
-        return;
+        throw new Error("You selected a Pro layout. Please upgrade to publish.");
       }
-
-      if (form.banner.type === "image" && !isPro) {
-         setError("Custom banner images are a Pro feature.");
-         setLoading(false);
-         return;
+  
+      // Pro banner check
+      if (form.banner?.type === "image" && !isPro) {
+        throw new Error("Custom banner images are a Pro feature.");
       }
-
+  
+      // Auth token
       const token = await user.getIdToken();
       setAuthToken(token);
-
-      await cardAPI.createCard(form);
-      router.push("/dashboard");
+  
+      // 🔥 CREATE CARD
+      const res = await cardAPI.createCard(form);
+      console.log("CREATE CARD RESPONSE 👉", res);
+  
+      const cardLink = res?.cardLink;
+  
+      if (!cardLink) {
+        console.error("❌ Full API response:", res);
+        throw new Error("Card created but card link not returned");
+      }
+  
+      // ✅ REDIRECT
+      router.push(`/p/${cardLink}`);
+  
+      // OR open in new tab
+      // window.open(`/${cardLink}`, "_blank");
+  
     } catch (err) {
       console.error("Create Card Error:", err);
+  
       if (err.response?.status === 403) {
         setError("Card limit reached. Upgrade your plan.");
       } else {
@@ -261,6 +277,8 @@ export default function CreateCardPage() {
       setLoading(false);
     }
   };
+  
+  
 
   const fontOptions = [
     { id: "basic", label: "Basic", class: "font-sans" },
