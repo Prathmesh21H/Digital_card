@@ -46,7 +46,7 @@ const ShareModal = ({ card, onClose }) => {
       });
 
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
-        shareUrl
+        shareUrl,
       )}`;
 
       const img = new Image();
@@ -76,7 +76,7 @@ const ShareModal = ({ card, onClose }) => {
           cardSize + 4,
           8,
           8,
-          "F"
+          "F",
         );
 
         // Middle shadow
@@ -88,7 +88,7 @@ const ShareModal = ({ card, onClose }) => {
           cardSize + 2,
           8,
           8,
-          "F"
+          "F",
         );
 
         // 2. Draw the Main White Card Face
@@ -152,7 +152,7 @@ const ShareModal = ({ card, onClose }) => {
 
     const qrImg = new Image();
     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(
-      shareUrl
+      shareUrl,
     )}`;
     qrImg.crossOrigin = "Anonymous";
 
@@ -174,7 +174,7 @@ const ShareModal = ({ card, onClose }) => {
       ctx.fillText(
         card.fullName || "Digital Card",
         width / 2,
-        qrY + qrSize + 80
+        qrY + qrSize + 80,
       );
 
       ctx.font = "20px sans-serif";
@@ -228,7 +228,7 @@ const ShareModal = ({ card, onClose }) => {
           <div className="bg-white p-6 rounded-3xl border-2 border-gray-100 shadow-sm mb-6 relative group">
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-                shareUrl
+                shareUrl,
               )}`}
               alt="QR Code"
               className="w-48 h-48 object-contain"
@@ -258,7 +258,7 @@ const ShareModal = ({ card, onClose }) => {
           <div className="grid grid-cols-4 gap-2 w-full border-t border-gray-100 pt-6">
             <a
               href={`https://wa.me/?text=Check out my digital card: ${encodeURIComponent(
-                shareUrl
+                shareUrl,
               )}`}
               target="_blank"
               rel="noopener noreferrer"
