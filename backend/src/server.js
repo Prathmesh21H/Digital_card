@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: ["http://localhost:3000"],
+    origin: ["https://digital-card-9pov.onrender.com"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
   })
