@@ -81,15 +81,15 @@ export default function PublicCardPage() {
   const router = useRouter();
   const rawSlug = params?.slug;
 
-  /**
-   * FIX: Simplified slug logic. 
-   * If the URL is /card/123, rawSlug is "123".
-   * We ensure the API call always uses the format "card/{id}"
-   */
-  const cardId = useMemo(() => {
+  const cardLinkString = useMemo(() => {
     if (!rawSlug) return null;
-    if (Array.isArray(rawSlug)) return rawSlug[rawSlug.length - 1];
-    return rawSlug;
+
+    if (Array.isArray(rawSlug)) {
+      const idx = rawSlug.indexOf("card");
+      return idx !== -1 ? rawSlug.slice(idx).join("/") : rawSlug.join("/");
+    }
+
+    return rawSlug.startsWith("card/") ? rawSlug : null;
   }, [rawSlug]);
 
   const [card, setCard] = useState(null);
@@ -109,37 +109,29 @@ export default function PublicCardPage() {
   /* ---------- FETCH CARD ---------- */
 
   useEffect(() => {
-    if (!cardId) return;
+    if (!cardLinkString) return;
 
-    const fetchCard = async () => {
+    (async () => {
       try {
         setLoading(true);
-        // Ensure we prepend 'card/' if the backend endpoint expects api/cards/public/card/{id}
-        const endpoint = cardId.startsWith("card/") ? cardId : `card/${cardId}`;
-        
         const res = await axios.get(
-          `${API_BASE_URL}api/cards/public/${endpoint}`
+          `${API_BASE_URL}api/cards/public/${cardLinkString}`
         );
         setCard(res.data.card);
-        setError(false);
-      } catch (err) {
-        console.error("Fetch Error:", err);
+      } catch {
         setError(true);
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchCard();
-  }, [cardId]);
+    })();
+  }, [cardLinkString]);
 
   /* ---------- AUTH ---------- */
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsOwner(!!(user && card && user.uid === card.ownerUid));
+    return onAuthStateChanged(auth, (user) => {
+      setIsOwner(user && card && user.uid === card.ownerUid);
     });
-    return () => unsubscribe();
   }, [card]);
 
   /* ---------- WALLET ---------- */
@@ -149,11 +141,10 @@ export default function PublicCardPage() {
       try {
         setSavingWallet(true);
         const token = await user.getIdToken(true);
-        const cardLinkPath = cardId.startsWith("card/") ? cardId : `card/${cardId}`;
 
         await axios.post(
           `${API_BASE_URL}api/recently-scanned`,
-          { cardLink: cardLinkPath },
+          { cardLink: cardLinkString },
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -165,16 +156,15 @@ export default function PublicCardPage() {
         setPendingSave(false);
       }
     },
-    [cardId]
+    [cardLinkString]
   );
 
   const handleWallet = (e) => {
     e.stopPropagation();
     const user = auth.currentUser;
 
-    if (user) {
-      saveToWallet(user);
-    } else {
+    if (user) saveToWallet(user);
+    else {
       setPendingSave(true);
       setAuthOpen(true);
     }
@@ -196,7 +186,7 @@ export default function PublicCardPage() {
     }
   };
 
-  /* ---------- QR URL ---------- */
+  /* ---------- QR URL (🔥 FIX) ---------- */
 
   const qrValue =
     typeof window !== "undefined" && card
@@ -214,14 +204,8 @@ export default function PublicCardPage() {
 
   if (error)
     return (
-      <div className="h-screen flex flex-col items-center justify-center gap-4">
-        <h2 className="text-xl font-bold">Card Not Found</h2>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2"
-        >
-          <RefreshCw size={16} /> Retry
-        </button>
+      <div className="h-screen flex items-center justify-center font-bold">
+        Card Not Found
       </div>
     );
 
@@ -232,26 +216,20 @@ export default function PublicCardPage() {
         onClick={() => setIsFlipped(!isFlipped)}
       >
         <div
-          className={`relative w-full h-full transition-transform duration-700 preserve-3d cursor-pointer ${
+          className={`relative w-full h-full transition-transform duration-700 preserve-3d ${
             isFlipped ? "rotate-y-180" : ""
           }`}
         >
           {/* FRONT */}
-          <div className="absolute inset-0 backface-hidden bg-white rounded-3xl p-6 shadow-xl">
-            <div className="flex flex-col items-center">
-              <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 flex items-center justify-center">
-                <Building2 size={40} className="text-gray-400" />
-              </div>
-              <h1 className="text-2xl font-black text-center">
-                {card?.fullName || "No Name"}
-              </h1>
-              <p className="text-gray-500">{card?.jobTitle}</p>
-            </div>
+          <div className="absolute inset-0 backface-hidden bg-white rounded-3xl p-6">
+            <h1 className="text-2xl font-black text-center">
+              {card.fullName}
+            </h1>
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-6">
               <button
                 onClick={handleWallet}
-                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors"
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold flex justify-center gap-2"
               >
                 {savingWallet ? (
                   <Loader2 size={18} className="animate-spin" />
@@ -266,38 +244,31 @@ export default function PublicCardPage() {
             {isOwner && (
               <div className="flex justify-center gap-3 mt-6">
                 <button
-                  onClick={(e) => { e.stopPropagation(); router.push(`/edit/${card.cardId}`); }}
-                  className="p-3 bg-gray-100 rounded-full hover:bg-gray-200"
+                  onClick={() => router.push(`/edit/${card.cardId}`)}
+                  className="px-4 py-2 bg-gray-100 rounded-full"
                 >
-                  <Pencil size={18} />
+                  <Pencil size={14} />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setDeleteOpen(true); }}
-                  className="p-3 bg-red-100 text-red-600 rounded-full hover:bg-red-200"
+                  onClick={() => setDeleteOpen(true)}
+                  className="px-4 py-2 bg-red-100 rounded-full"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={14} />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); router.push("/wallet"); }}
-                  className="p-3 bg-emerald-100 text-emerald-600 rounded-full hover:bg-emerald-200"
+                  onClick={() => router.push("/wallet")}
+                  className="px-4 py-2 bg-emerald-100 rounded-full"
                 >
-                  <CreditCard size={18} />
+                  <CreditCard size={14} />
                 </button>
               </div>
             )}
-            
-            <p className="mt-auto pt-10 text-center text-xs text-gray-400">
-              Tap card to view QR Code
-            </p>
           </div>
 
           {/* BACK */}
-          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-3xl flex flex-col items-center justify-center shadow-xl">
-            <div className="p-4 bg-white rounded-2xl shadow-inner">
-              <QRCodeCanvas value={qrValue} size={200} level="H" />
-            </div>
-            <p className="mt-6 font-bold text-gray-700">Scan to share profile</p>
-            <p className="mt-2 text-xs text-gray-400">Tap to return</p>
+          <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-3xl flex flex-col items-center justify-center">
+            <QRCodeCanvas value={qrValue} size={180} level="H" />
+            <p className="mt-4 text-xs text-gray-400">Tap to return</p>
           </div>
         </div>
       </div>
