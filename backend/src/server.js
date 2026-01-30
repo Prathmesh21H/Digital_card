@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: ["https://digital-card-beta-six.vercel.app"],
+    origin: true,
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
   })
