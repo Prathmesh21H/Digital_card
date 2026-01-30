@@ -3,72 +3,59 @@ import { SubscriptionModel } from "../models/subscriptionModel.js";
 import { CardModel } from "../models/cardModel.js";
 
 /**
- * Save scanned card
+ * Save scanned card (AUTH REQUIRED)
  */
 export const saveScannedCard = async (req, res) => {
-  const { cardLink, email } = req.body;
+  try {
+    const { cardLink } = req.body;
 
-  // Check if card exists
-  const card = await CardModel.findByLink(cardLink);
-  if (!card) return res.status(404).json({ message: "Card not found" });
+    if (!cardLink) {
+      return res.status(400).json({ message: "cardLink is required" });
+    }
 
-  // Registered user
-  if (req.user?.uid) {
+    const card = await CardModel.findByLink(cardLink);
+    if (!card) {
+      return res.status(404).json({ message: "Card not found" });
+    }
+
     const uid = req.user.uid;
 
-    // Get subscription
     const subscription = await SubscriptionModel.findByUid(uid);
     const maxLimit =
       subscription?.plan === "FREE"
         ? 10
         : subscription?.plan === "PRO"
         ? 50
-        : "unlimited";
+        : Infinity;
 
     const scannedCards = await RecentlyScannedModel.add(
       uid,
       cardLink,
       maxLimit
     );
-    return res.json({ saved: true, scannedCards });
-  }
 
-  // Non-registered user → prompt signup
-  return res.status(403).json({
-    saved: false,
-    message: "Sign up to save recently scanned cards",
-  });
+    return res.json({
+      saved: true,
+      scannedCards,
+    });
+  } catch (err) {
+    console.error("Save Scanned Card Error:", err);
+    return res.status(500).json({
+      message: "Failed to save scanned card",
+    });
+  }
 };
 
 /**
- * Get recently scanned cards for logged-in user
+ * Get recently scanned cards
  */
 export const getRecentlyScannedCards = async (req, res) => {
-  const uid = req.user?.uid;
-  const { cardLink } = req.query; // optional query param for public access
-
-  // If a cardLink is provided, return that card for anyone
-  if (cardLink) {
-    const card = await CardModel.findByLink(cardLink);
-    if (!card) return res.status(404).json({ message: "Card not found" });
-
-    return res.json({
-      card,
-      message: uid
-        ? "Registered user can save this card"
-        : "Sign up to save this card",
-    });
-  }
-
-  // Registered user: return their saved recently scanned cards
-  if (uid) {
+  try {
+    const uid = req.user.uid;
     const scannedCards = await RecentlyScannedModel.get(uid);
     return res.json({ scannedCards });
+  } catch (err) {
+    console.error("Get Recently Scanned Error:", err);
+    res.status(500).json({ message: "Failed to fetch scanned cards" });
   }
-
-  // Non-registered user without cardLink: return empty + signup prompt
-  return res.json({
-    scannedCards: [],
-    message: "Sign up to save and view recently scanned cards",
-  });
 };

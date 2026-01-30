@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-
+import axios from "axios"; // Make sure to install axios: npm install axios
 import {
   Wallet,
   ExternalLink,
@@ -13,93 +12,107 @@ import {
   Briefcase,
   MapPin,
 } from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
-// CONFIGURATION
+// --- 1. SETUP AXIOS (Move this to @/lib/api.js in a real app) ---
 const API_BASE_URL =
-  (typeof process !== "undefined" &&
-    process.env &&
-    process.env.NEXT_PUBLIC_API_URL) ||
-  "http://localhost:5000/";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/";
+
+const API = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Helper to set headers
+const setAuthToken = (token) => {
+  if (token) {
+    API.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  } else {
+    delete API.defaults.headers.common["Authorization"];
+  }
+};
+// -------------------------------------------------------------
 
 export default function WalletPage() {
   const router = useRouter();
 
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(true); // New state to prevent premature redirects
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-  
-    const token = localStorage.getItem("token");
-    if (!token) return;
-  
-    fetchWallet();
-  }, []);
-  
+    // 2. USE FIREBASE LISTENER Instead of localStorage
+    // This ensures we always have a valid, non-expired token.
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          setAuthToken(token);
+          setAuthChecking(false);
+          fetchWallet(); // Fetch data only after we have the token
+        } catch (e) {
+          console.error("Error getting token", e);
+          setAuthChecking(false);
+        }
+      } else {
+        // No user logged in
+        router.replace("/login");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
   const fetchWallet = async () => {
     try {
       setLoading(true);
   
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("token")
-          : null;
+      // 1️⃣ Get the list of scanned cards
+      const listResponse = await API.get("api/recently-scanned/me");
+      const scannedItems = listResponse.data.scannedCards || [];
   
-      if (!token) return;
-  
-      const listUrl = `${API_BASE_URL}api/scanned/me`;
-      console.log("Fetching wallet from:", listUrl);
-  
-      const listResponse = await fetch(listUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-  
-      if (!listResponse.ok) throw new Error("Failed to fetch wallet");
-  
-      const listData = await listResponse.json();
-      const scannedItems = listData.scannedCards || [];
-  
+      // 2️⃣ Fetch card details using the cardLink endpoint
       const results = await Promise.all(
         scannedItems.map(async (item) => {
-          const detailUrl = `${API_BASE_URL}api/scanned/me?cardLink=${encodeURIComponent(
-            item.cardLink
-          )}`;
+          try {
+            // Assuming your endpoint is like: GET /api/cards/{cardId}
+            const cardId = item.cardLink.split("/")[1]; // Extract 'cardId' from 'card/{cardId}'
+            const detailResponse = await API.get(`api/cards/${cardId}`);
   
-          const detailRes = await fetch(detailUrl, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+            if (!detailResponse.data) return null;
   
-          if (!detailRes.ok) return null;
-  
-          const detailData = await detailRes.json();
-          if (!detailData.card) return null;
-  
-          return {
-            ...detailData.card,
-            scannedAt: item.scannedAt,
-            cardLink: item.cardLink,
-          };
+            return {
+              ...detailResponse.data, // card details from backend
+              scannedAt: item.scannedAt,
+              cardLink: item.cardLink,
+            };
+          } catch (innerErr) {
+            console.warn(`Failed to load card: ${item.cardLink}`, innerErr);
+            return null;
+          }
         })
       );
   
+      // 3️⃣ Filter out any failed fetches and sort by scannedAt
       const validCards = results
         .filter(Boolean)
-        .sort((a, b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+        .sort(
+          (a, b) =>
+            getDateString(b.scannedAt).getTime() -
+            getDateString(a.scannedAt).getTime()
+        );
   
       setCards(validCards);
       setError(null);
     } catch (err) {
-      console.error(err);
-      setError("Could not load your wallet. Please try again.");
+      console.error("Wallet Fetch Error:", err);
+      setError("Could not load your wallet.");
     } finally {
       setLoading(false);
     }
   };
-  
   
   // --- HELPERS ---
 
@@ -167,26 +180,24 @@ export default function WalletPage() {
   );
 
   return (
-    
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
-       <header className="bg-white shadow-sm h-16 fixed w-full top-0 z-30 flex items-center justify-between px-4 lg:px-6">
-       <div
-  onClick={() => router.push("/dashboard")}
-  className="text-xl lg:text-2xl font-bold text-blue-600 tracking-tight cursor-pointer"
->
-  Nexcard
-</div>
+      <header className="bg-white shadow-sm h-16 fixed w-full top-0 z-30 flex items-center justify-between px-4 lg:px-6">
+        <div
+          onClick={() => router.push("/dashboard")}
+          className="text-xl lg:text-2xl font-bold text-blue-600 tracking-tight cursor-pointer"
+        >
+          Nexcard
+        </div>
 
-  <div className="relative">
-    <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center">
-      <User className="w-4 h-4 lg:w-5 lg:h-5 text-gray-500" />
-    </div>
-    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 lg:w-3 lg:h-3 bg-green-500 border-2 border-white rounded-full"></span>
-  </div>
-</header>
+        <div className="relative">
+          <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center">
+            <User className="w-4 h-4 lg:w-5 lg:h-5 text-gray-500" />
+          </div>
+          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 lg:w-3 lg:h-3 bg-green-500 border-2 border-white rounded-full"></span>
+        </div>
+      </header>
 
-<main className="max-w-6xl mx-auto px-4 pt-24 pb-8">
-
+      <main className="max-w-6xl mx-auto px-4 pt-24 pb-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>

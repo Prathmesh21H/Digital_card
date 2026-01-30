@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { CreditCard } from "lucide-react";
 import axios from "axios";
 import {
   Phone,
@@ -107,41 +108,63 @@ export default function PublicCardPage() {
     return () => unsubscribe();
   }, [card]);
 
-  const executeWalletSave = useCallback(async (userToken) => {
+  const executeWalletSave = useCallback(async (user) => {
     try {
       setSavingWallet(true);
-      const token = userToken || localStorage.getItem("token");
-      await axios.post(`${API_BASE_URL}api/recently-scanned`, { cardLink: cardLinkString }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  
+      const token = await user.getIdToken(true);
+  
+      await axios.post(
+        `${API_BASE_URL}api/recently-scanned`,
+        {
+          cardLink: cardLinkString, // ✅ MATCH BACKEND
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+  
       alert("Saved to wallet!");
     } catch (err) {
-      alert("Failed to save.");
+      console.error("Wallet Save Error:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Failed to save.");
     } finally {
       setSavingWallet(false);
       setPendingSave(false);
     }
   }, [cardLinkString]);
+  
+  
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && pendingSave) {
         setIsAuthOpen(false);
-        const token = await user.getIdToken();
-        executeWalletSave(token);
+        executeWalletSave(user);
       }
     });
+  
     return () => unsubscribe();
   }, [pendingSave, executeWalletSave]);
+  
 
   const handleSaveToWallet = (e) => {
     e.stopPropagation();
-    if (auth.currentUser) {
-      auth.currentUser.getIdToken(true).then(executeWalletSave);
+  
+    const user = auth.currentUser;
+  
+    if (user) {
+      executeWalletSave(user);
     } else {
-      setPendingSave(true); setAuthView("signup"); setIsAuthOpen(true);
+      setPendingSave(true);
+      setAuthView("signup");
+      setIsAuthOpen(true);
     }
   };
+  
 
   const handleEdit = (e) => {
     e.stopPropagation();
@@ -152,6 +175,11 @@ export default function PublicCardPage() {
     e.stopPropagation();
     setIsDeleteModalOpen(true);
   };
+  const handleSeeWallet = (e) => {
+    e.stopPropagation();
+    router.push("/wallet");
+  };
+  
 
   const handleConfirmDelete = async () => {
     try {
@@ -194,6 +222,14 @@ export default function PublicCardPage() {
               <h1 className="text-2xl font-black text-slate-900 truncate">{card.fullName}</h1>
               <p className="text-blue-600 font-bold text-sm uppercase tracking-widest">{card.designation}</p>
               {card.company && <p className="text-slate-500 text-xs mt-1 flex items-center justify-center gap-1 font-medium"><Building2 size={12}/> {card.company}</p>}
+              
+              {/* --- BIO SECTION START --- */}
+              {card.bio && (
+                <p className="mt-3 text-sm text-slate-600 leading-relaxed px-2 line-clamp-3">
+                  {card.bio}
+                </p>
+              )}
+              {/* --- BIO SECTION END --- */}
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-hide">
@@ -226,6 +262,14 @@ export default function PublicCardPage() {
                   >
                     <Trash2 size={16} />
                   </button>
+
+                    {/* SEE WALLET */}
+    <button 
+      onClick={handleSeeWallet}
+      className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-full text-xs font-bold shadow-sm hover:bg-emerald-100 hover:text-emerald-700 transition-all active:scale-95 border border-emerald-100"
+    >
+      <CreditCard size={14} /> Wallet
+    </button>
                 </div>
               )}
             </div>
