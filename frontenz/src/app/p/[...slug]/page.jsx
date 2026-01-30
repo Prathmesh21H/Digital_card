@@ -59,7 +59,25 @@ export default function PublicCardPage() {
   const params = useParams();
   const router = useRouter();
   const rawSlug = params?.slug;
-  const cardLinkString = Array.isArray(rawSlug) ? rawSlug.join("/") : rawSlug;
+
+const cardLinkString = React.useMemo(() => {
+  if (!rawSlug) return null;
+
+  // slug can be ["card", "id"] OR ["p","card","id"]
+  if (Array.isArray(rawSlug)) {
+    const cardIndex = rawSlug.indexOf("card");
+    if (cardIndex !== -1) {
+      return rawSlug.slice(cardIndex).join("/");
+    }
+    return rawSlug.join("/");
+  }
+
+  // already "card/id"
+  if (rawSlug.startsWith("card/")) return rawSlug;
+
+  return null;
+}, [rawSlug]);
+
 
   const [card, setCard] = useState(null);
   const [loading, setLoading] = useState(true);
