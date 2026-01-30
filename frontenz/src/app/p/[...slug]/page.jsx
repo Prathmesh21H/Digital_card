@@ -74,8 +74,8 @@ export default function PublicCardPage() {
   const router = useRouter();
   const rawSlug = params?.slug;
 
-  /* * FIX: Robust slug parsing.
-   * We extract the ID regardless of whether Next.js passes it as a string or array.
+  /* * FIX: Robust slug parsing ensures we get the ID regardless of route config.
+   * works for /card/123 -> rawSlug "123"
    */
   const cardId = useMemo(() => {
     if (!rawSlug) return null;
@@ -89,6 +89,8 @@ export default function PublicCardPage() {
 
   const [savingWallet, setSavingWallet] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
+  
+  // Tracks if the CURRENT viewer is the owner
   const [isOwner, setIsOwner] = useState(false);
 
   const [authOpen, setAuthOpen] = useState(false);
@@ -97,22 +99,24 @@ export default function PublicCardPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  /* ---------- FETCH CARD ---------- */
-
+  /* ---------- FETCH CARD (PUBLIC ACCESS) ---------- */
+  
+  // This runs immediately when the page loads, NO AUTH REQUIRED
   useEffect(() => {
     if (!cardId) return;
 
     const fetchCard = async () => {
       try {
         setLoading(true);
-        // FIX: Manually construct the endpoint.
-        // If cardId is "123", we request "card/123".
-        // If cardId is already "card/123", we use it as is.
+        
+        // Construct endpoint: ensures we send "card/123" to backend
         const endpoint = cardId.startsWith("card/") ? cardId : `card/${cardId}`;
         
+        // Note: No Authorization header here. This is a public GET request.
         const res = await axios.get(
           `${API_BASE_URL}api/cards/public/${endpoint}`
         );
+        
         setCard(res.data.card);
         setError(false);
       } catch (err) {
@@ -126,22 +130,23 @@ export default function PublicCardPage() {
     fetchCard();
   }, [cardId]);
 
-  /* ---------- AUTH ---------- */
+  /* ---------- AUTH LISTENER ---------- */
 
+  // This runs in background to check if the viewer happens to be the owner
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Only set owner if user is logged in AND matches the card owner
+      // 1. Check ownership
       setIsOwner(!!(user && card && user.uid === card.ownerUid));
       
-      // If user just logged in after clicking "Save", trigger the save
+      // 2. Handle "Save to Wallet" if they just logged in
       if (user && pendingSave) {
         saveToWallet(user);
       }
     });
     return () => unsubscribe();
-  }, [card, pendingSave]);
+  }, [card, pendingSave]); // Added pendingSave dependency
 
-  /* ---------- WALLET ---------- */
+  /* ---------- WALLET ACTION ---------- */
 
   const saveToWallet = useCallback(
     async (user) => {
@@ -149,9 +154,9 @@ export default function PublicCardPage() {
         setSavingWallet(true);
         const token = await user.getIdToken(true);
         
-        // Ensure format is correct for the backend recently-scanned list
         const cardLinkPath = cardId.startsWith("card/") ? cardId : `card/${cardId}`;
 
+        // This request DOES require auth, but only runs if user clicks button
         await axios.post(
           `${API_BASE_URL}api/recently-scanned`,
           { cardLink: cardLinkPath },
@@ -171,18 +176,19 @@ export default function PublicCardPage() {
   );
 
   const handleWallet = (e) => {
-    e.stopPropagation(); // Prevent card flip
+    e.stopPropagation(); // Stop card from flipping
     const user = auth.currentUser;
 
     if (user) {
       saveToWallet(user);
     } else {
+      // If not logged in, open modal. Card remains visible in background.
       setPendingSave(true);
       setAuthOpen(true);
     }
   };
 
-  /* ---------- DELETE ---------- */
+  /* ---------- DELETE ACTION ---------- */
 
   const confirmDelete = async () => {
     try {
@@ -205,7 +211,7 @@ export default function PublicCardPage() {
       ? `${window.location.origin}/card/${card.cardId}`
       : "";
 
-  /* ---------- UI ---------- */
+  /* ---------- UI RENDER ---------- */
 
   if (loading)
     return (
@@ -238,7 +244,7 @@ export default function PublicCardPage() {
             isFlipped ? "rotate-y-180" : ""
           }`}
         >
-          {/* FRONT */}
+          {/* FRONT SIDE (Visible to Everyone) */}
           <div className="absolute inset-0 backface-hidden bg-white rounded-3xl p-6 shadow-xl flex flex-col">
             <div className="flex flex-col items-center mt-4">
               <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 flex items-center justify-center">
@@ -251,6 +257,7 @@ export default function PublicCardPage() {
             </div>
 
             <div className="mt-8 space-y-3">
+              {/* Public users can click this, triggers AuthModal if not logged in */}
               <button
                 onClick={handleWallet}
                 className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm"
@@ -265,7 +272,7 @@ export default function PublicCardPage() {
               </button>
             </div>
 
-            {/* Only show these if logged in as owner */}
+            {/* Admin Buttons (Only Visible if isOwner is true) */}
             {isOwner && (
               <div className="flex justify-center gap-3 mt-6">
                 <button
@@ -294,7 +301,7 @@ export default function PublicCardPage() {
             </p>
           </div>
 
-          {/* BACK */}
+          {/* BACK SIDE */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-white rounded-3xl flex flex-col items-center justify-center shadow-xl">
             <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-100">
               <QRCodeCanvas value={qrValue} size={200} level="H" />
@@ -312,6 +319,7 @@ export default function PublicCardPage() {
         isDeleting={isDeleting}
       />
 
+      {/* Modal for Public Users who want to Save */}
       <AuthModal
         isOpen={authOpen}
         onClose={() => setAuthOpen(false)}
