@@ -7,10 +7,7 @@ import {
 
 const router = express.Router();
 
-// 1. ADD 'requireAuth' HERE so req.user is populated
 router.post("/", requireAuth, saveScannedCard);
-
-// Get my scanned cards
 router.get("/me", requireAuth, getRecentlyScannedCards);
 
 export default router;
